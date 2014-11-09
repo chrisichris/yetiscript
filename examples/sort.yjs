@@ -1,0 +1,176 @@
+asort f less l =
+   (a = array l;
+    f less a;
+    list a);
+
+selectionSort less a =
+   (selectLess i j = if less a[i] a[j] then i else: j;
+    swapMin i = swapAt a i (fold selectLess i [i + 1 .. length a - 1]);
+    for [0 .. length a - 2] swapMin);
+
+combSort less a =
+   (var gap = length a;
+    var swapped = true;
+    gap > 1 or swapped loop
+       (gap := gap * 10 div 13;
+        if gap == 10 or gap == 9 then
+            gap := 11
+        elif gap < 1 then
+            gap := 1
+        fi;
+        swapped := false;
+        for [0 .. length a - gap - 1] do i:
+            if less a[i + gap] a[i] then
+                swapAt a i (i + gap);
+                swapped := true
+            fi
+        done));
+
+shellSort less a is (^a -> ^a -> boolean) -> array<^a> -> () =
+   (var inc = length a;
+    (inc := if inc == 2 then 1 else: inc * 10 div 23; inc > 0) loop
+       (var i = inc;
+        i < length a loop
+           (tmp = a[i];
+            var j = i;
+            j >= inc and less tmp a[j - inc] loop
+               (a[j] := a[j - inc];
+                j := j - inc);
+            a[j] := tmp;
+            i := i + 1)));
+
+// based on wikipedia pseudocode example
+heapSort less a =
+   (for [1 .. length a - 1] do end:
+        var child = end;
+        child > 0 loop
+           (parent = (child - 1) div 2;
+            if less a[parent] a[child] then
+                swapAt a parent child;
+                child := parent
+            else:
+                child := 0)
+    done;
+    for (reverse [0 .. length a - 2]) do end:
+        swapAt a 0 (end + 1);
+        var root = 0;
+        root * 2 + 1 <= end loop // shiftdown
+           (var child = root * 2 + 1;
+            if child < end and less a[child] a[child + 1] then
+                child := child + 1
+            fi;
+            if less a[root] a[child] then
+                swapAt a root child;
+                root := child
+            else:
+                root := end)
+    done);
+
+qsort less a is (^a -> ^a -> boolean) -> array<^a> -> () =
+   (sort l r =
+       (var i = l;
+        var j = r;
+        x = a[(l + r) div 2];
+           (less a[i] x loop i := i + 1;
+            less x a[j] loop j := j - 1;
+            if i <= j then
+                tmp = a[i];
+                a[i] := a[j];
+                a[j] := tmp;
+                i := i + 1;
+                j := j - 1;
+            fi;
+            i <= j) loop;
+        if l < j then
+            sort l j
+        fi;
+        if i < r then
+            sort i r
+        fi)) 0 (length a - 1);
+
+qsort2 less =
+   (qsort l =
+        case l of
+        x :: xs: // could do with half of the compares
+            qsort (filter ((not) . less x) xs)
+                ++ x :: qsort (filter (less x) xs);
+        _: [];
+        esac);
+
+merge less l a b =
+    if empty? a then
+        revAppend l b
+    elif empty? b then
+        revAppend l a
+    elif head a `less` head b then
+        merge less (head a :: l) (tail a) b
+    else:
+        merge less (head b :: l) a (tail b);
+
+splitList l fst snd =
+    case l of
+        h1 :: h2 :: t: splitList t (h1 :: fst) (h2 :: snd);
+        h :: _: { fst, snd = h :: snd };
+        _: { fst, snd };
+    esac;
+
+mergeSort less l =
+    case l of
+    _::_::_:
+        {fst, snd} = splitList l [] [];
+        merge less [] (mergeSort less fst) (mergeSort less snd);
+    _: l
+    esac;
+
+insertionSort less l =
+    fold do l e:
+        {fst, snd} = splitBy ((not) . (`less` e)) l;
+        fst ++ e :: snd
+    done [] l;
+
+insertionSort2 less a =
+    for [1 .. length a - 1] do i:
+        v = a[i];
+        var j = i - 1;
+        j >= 0 and less v a[j] loop
+           (a[j + 1] := a[j];
+            j := j - 1);
+        a[j + 1] := v
+    done;
+
+
+test n slow =
+   (l = map \(randomInt (n * 2)) [1..n];
+    sorted = sort l;
+
+    testSort name f =
+       (var n = 0; // number of comparisions
+        less x y = (n := n + 1; x < y);
+        t' = dateNow();
+        r = f less l;
+        _ = length r; // force lists so n would have correct value
+        t = dateNow() - t';
+        if sorted != r then
+            println "\(name): ERROR\n\(r) != \(sorted)"
+        else:
+            println "\(name):\(n)\t\(t)ms");
+
+    testASort name f = testSort name (asort f);
+
+    println "sorting array of \(length l) elements...";
+    if slow then
+        testASort "selection" selectionSort;
+        testSort "insertion" insertionSort;
+        testASort "insertion2" insertionSort2;
+        testSort "qsort2" qsort2;
+        testASort "heap" heapSort;
+    fi;
+    testASort "comb" combSort;
+    testASort "shell" shellSort;
+    testASort "qsort" qsort;
+    testSort "merge" mergeSort;
+    testSort "sortBy" sortBy);
+
+test 20 true;
+test 100 false;
+

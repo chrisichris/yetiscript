@@ -1,0 +1,6 @@
+prod l1 l2 = concat (map (_ x = map (_ y = {x, y}) l2) l1);
+
+println (prod [1, 2] [5, 6]);
+println (prod [1, 2] []);
+println (prod [] []);
+println (map id []);

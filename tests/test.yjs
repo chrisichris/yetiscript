@@ -1,0 +1,593 @@
+program test;
+
+/*
+expectCompileError testCode =
+   (load yeti.lang.compiler.eval;
+    case evaluateYetiCode [] [] testCode of
+    {result = CompileException _}: true;
+    {str}: println str; false;
+    esac);
+*/
+received = array [];
+addReceived v =
+    push received v;
+
+h = ["0.5": true, "33.2": false];
+trueTests = [
+'id': \(id true),
+'const': const true,
+'ignore': \(_ = false; true),
+'at' : \(at h "0.5" and not (at h "33.2")),
+'not': \(not false and (not true) == false),
+'and': \(true and not (false and true)),
+'or' : \(not (false or false) and (false or true)),
+'in': \(not ("a" in h) and "0.5" in h and ("33.2" in h)),
+'==': \(not (0 == -1) and (1 == 1)),
+'!=': \(1 != 2 and not (0 != 0)),
+'<' : \(1 < 2 and not (1 < 1) and not (1 < 0)),
+'<=': \(1 <= 2 and 1 <= 1 and not (1 < 0)),
+'>' : \(1 > 0 and not (0 > 0) and not (-2 > -1)),
+'>=': \(22 >= 21.9 and 22 >= 22 and not (22 >= 22.1)),
+'*' : \(2 + 3 == 5),
+'-' : \(2 - 3 == -1),
+'*' : \(7 * 5 == 35),
+'/' : \(42 / 2 == 21),
+'%' : \(7 % 5 == 2),
+'.' : \(((* 2) . (+ 1)) 0.5 == 3),
+'list lit':\([1,2] == [1,2]),
+'head':\(head [1,2] == 1),
+'tail':\(tail [1,2] == [2]),
+'::': \(head (1 :: [2]) == 1 and tail (1 :: [2]) == [2]),
+//':.': \(head (1 :. \[2]) == 1 and tail (1 :. \[2]) == [2]),
+'=~': \('kala' =~ 'a' and not ('kala' =~ 't')),
+'^' : \(('a' ^ '7') == 'a7'),
+'div': \(7 div 2 == 3),
+'shl': \(7 shl 2 == 28),
+'shr': \(35 shr 3 == 4),
+'-x': \(x = 2; -x == 0 - 2),
+'nullptr?': \(nullptr? none and not (nullptr? 42)),
+//'synchronized': \(synchronized 7 \true),
+'flip': \(flip (-) 2 3 == 1),
+'number': \(number '13' == 13),
+'min': \(min 897 13 == 13),
+'max': \(max 897 13 == 897),
+'abs': \(abs 52 == 52 and abs (-4) == 4),
+'any': \(any (== 3) [1 .. 5] and not (any (== 3) [5 .. 10])),
+'all': \(not (all (!= 3) [1 .. 5]) and (all (!= 3) [5 .. 10])),
+'contains?': \(contains? 3 [1 .. 5] and not (contains? 3 [5 .. 10])),
+'maybe': \(maybe false (not) (Some false)),
+'struct': \(f a = { var x = a }; (f 33).x := 3; true),
+'lambda': \(\\\\1 2 3 4 5 == 1),
+'fun1': \(f a = a; f 1 == 1),
+'fun2_1': \(f a b = a; f 1 2 == 1),
+'fun2_2': \(f a b = b; f 1 2 == 2),
+'fun3_1': \(f a b c = a; f 1 2 3 == 1),
+'fun3_2': \(f a b c = b; f 1 2 3 == 2),
+'fun3_2': \(f a b c = c; f 1 2 3 == 3),
+'fun4_1': \(f a b c d = a; f 1 2 3 4 == 1),
+'fun4_2': \(f a b c d = b; f 1 2 3 4 == 2),
+'fun4_3': \(f a b c d = c; f 1 2 3 4 == 3),
+'fun4_4': \(f a b c d = d; f 1 2 3 4 == 4),
+'fun5_1': \(f a b c d e = a; f 1 2 3 4 5 == 1),
+'fun5_2': \(f a b c d e = b; f 1 2 3 4 5 == 2),
+'fun5_3': \(f a b c d e = c; f 1 2 3 4 5 == 3),
+'fun5_4': \(f a b c d e = d; f 1 2 3 4 5 == 4),
+'fun5_5': \(f a b c d e = e; f 1 2 3 4 5 == 5),
+'funp2_1': \(f = (_ a b = a) 1; f 2 == 1),
+'funp2_2': \(f = (_ a b = b) 1; f 2 == 2),
+'funp3_1': \(f = (_ a b c = a) 1; f 2 3 == 1),
+'funp3_2': \(f = (_ a b c = b) 1; f 2 3 == 2),
+'funp3_2': \(f = (_ a b c = c) 1; f 2 3 == 3),
+'funp4_1': \(f = (_ a b c d = a) 1; f 2 3 4 == 1),
+'funp4_2': \(f = (_ a b c d = b) 1; f 2 3 4 == 2),
+'funp4_3': \(f = (_ a b c d = c) 1; f 2 3 4 == 3),
+'funp4_4': \(f = (_ a b c d = d) 1; f 2 3 4 == 4),
+'funp5_1': \(f = (_ a b c d e = a) 1; f 2 3 4 5 == 1),
+'funp5_2': \(f = (_ a b c d e = b) 1; f 2 3 4 5 == 2),
+'funp5_3': \(f = (_ a b c d e = c) 1; f 2 3 4 5 == 3),
+'funp5_4': \(f = (_ a b c d e = d) 1; f 2 3 4 5 == 4),
+'funp5_5': \(f = (_ a b c d e = e) 1; f 2 3 4 5 == 5),
+'drop-1': \(drop (-1) [1..3,7] == [1,2,3,7]),
+'drop0': \(drop 0 [1..3,7] == [1,2,3,7]),
+'drop1': \(drop 1 [1..3,7] == [2,3,7]),
+'drop2': \(drop 2 [1..3,7] == [3,7]),
+'drop3': \(drop 3 [1..3,7] == [7]),
+'drop4': \((drop 4 [1..3,7]) == []),
+'drop5': \((drop 5 [1..3,7]) == []),
+'drop-1r': \(drop (-1) (reverse [2..4]) == [4,3,2]),
+'drop0r': \(drop 0 (reverse [2..4]) == [4,3,2]),
+'drop1r': \(drop 1 (reverse [2..4]) == [3,2]),
+'drop2r': \(drop 2 (reverse [2..4]) == [2]),
+'drop3r': \([] == (drop 3 (reverse [2..4]))),
+'drop4r': \([] == (drop 4 (reverse [2..4]))),
+'drop-1l': \(drop (-1) [1,2,3] == [1,2,3]),
+'drop0l': \(drop 0 [1,2,3] == [1,2,3]),
+'drop1l': \(drop 1 [1,2,3] == [2,3]),
+'drop2l': \(drop 2 [1,2,3] == [3]),
+'drop3l': \([] == (drop 3 [1,2,3])),
+'drop4l': \([] == (drop 4 [1,2,3])),
+'drop-1a': \(drop (-1) [1..3] == [1,2,3]),
+'drop0a': \(drop 0 (array [1..3]) == [1,2,3]),
+'drop1a': \(drop 1 (array [1..3]) == [2,3]),
+'drop2a': \(drop 2 (array [1..3]) == [3]),
+'drop3a': \([] == (drop 3 (array [1..3]))),
+'drop4a': \([] == (drop 4 (array [1..3]))),
+//'drop-1b': \(drop (-1) new String('123')#getBytes() == [49,50,51]),
+//'drop0b': \(drop 0 new String('123')#getBytes() == [49,50,51]),
+//'drop1b': \(drop 1 new String('123')#getBytes() == [50,51]),
+//'drop2b': \(drop 2 new String('123')#getBytes() == [51]),
+//'drop3b': \(nullptr? (drop 3 new String('123')#getBytes())),
+//'drop4b': \(nullptr? (drop 4 new String('123')#getBytes())),
+'take-1': \([] == (take (-1) [11..13,7])),
+'take0': \([] == (take 0 [11..13,7])),
+'take1': \(take 1 [11..13,7] == [11]),
+'take2': \(take 2 [11..13,7] == [11,12]),
+'take3': \(take 3 [11..13,7] == [11,12,13]),
+'take4': \(take 4 [11..13,7] == [11,12,13,7]),
+'take5': \(take 5 [11..13,7] == [11,12,13,7]),
+'take-1r': \([] == (take (-1) (reverse [2..4]))),
+'take0r': \([] == (take 0 (reverse [2..4]))),
+'take1r': \(take 1 (reverse [2..4]) == [4]),
+'take2r': \(take 2 (reverse [2..4]) == [4,3]),
+'take3r': \(take 3 (reverse [2..4]) == [4,3,2]),
+'take4r': \(take 4 (reverse [2..4]) == [4,3,2]),
+'take-1l': \([] == (take (-1) [1,2,3])),
+'take0l': \([] == (take 0 [1,2,3])),
+'take1l': \(take 1 [1,2,3] == [1]),
+'take2l': \(take 2 [1,2,3] == [1,2]),
+'take3l': \(take 3 [1,2,3] == [1,2,3]),
+'take4l': \(take 4 [1,2,3] == [1,2,3]),
+'take-1a': \([] == (take (-1) (array [11..13]))),
+'take0a': \([] == (take 0 (array [11..13]))),
+'take1a': \(take 1 (array [11..13]) == [11]),
+'take2a': \(take 2 (array [11..13]) == [11,12]),
+'take3a': \(take 3 (array [11..13]) == [11,12,13]),
+'take4a': \(take 4 (array [11..13]) == [11,12,13]),
+/*
+'take-1b': \(nullptr? (take (-1) new String('123')#getBytes())),
+'take0b': \(nullptr? (take 0 new String('123')#getBytes())),
+'take1b': \(take 1 new String('123')#getBytes() == [49]),
+'take2b': \(take 2 new String('123')#getBytes() == [49,50]),
+'take3b': \(take 3 new String('123')#getBytes() == [49,50,51]),
+'take4b': \(take 4 new String('123')#getBytes() == [49,50,51]),
+*/
+'named lambda': do:
+    fib = (f p n c = if c <= 0 then n else f n (p + n) (c - 1) fi) 0 1;
+    fib 10 == 89
+done,
+/*
+'tail recursion': do:
+    compile inStart tokens =
+       case tokens of
+        1 :: rest:
+            compile false rest;
+        _ :: rest:
+            if inStart then
+                compile true rest
+            else
+                true
+            fi;
+        _: false;
+        esac;
+    compile true [1, 2]
+done,
+*/
+'with': do:
+    a = {x = 10};
+    b = {x = 12};
+    a with b == b
+done,
+'escaped symbols': do:
+    
+    stru = {``one-var test`` = 'foo-text'};
+    
+    'foo-text' == stru.``one-var test``
+    and 
+    ((script 'stru["one-var test"] === "foo-text"') unsafely_as boolean)
+done,
+'opaque types': do:
+    typedef opaque st<v,s> = s -> {fst is v, snd is s}
+    typedef opaque magic<x> = list<x>
+    m = { create = id, values = id } as {
+        create is list<'a> -> magic<'a>,
+        values is magic<'b> -> list<'b>,
+    };
+    v = m.create [5..7] is magic<number>;
+    m.values v == [5..7]
+done,
+'opaque java types': do:
+    typedef opaque foo = ~Object;
+    "\(22 as ~Object as foo)" == "22"
+done,
+/*
+'opaque struct 1': do:
+    expectCompileError
+       'typedef opaque st = {a is number, b is ()};
+        wrap = id as {a is number} -> st;
+        unwrap = id as st -> {a is number, b is ()};
+        (unwrap (wrap {a = 42})).b'
+done,
+'opaque struct 2': do:
+    expectCompileError
+       'typedef opaque st = {.a is number};
+        wrap = id as {.a is number} -> st;
+        unwrap = id as st -> {.a is number, .b is ()};
+        (unwrap (wrap {a = 42})).b'
+done,
+*/
+'var recursion': do:
+    var f x =
+        if x then
+            f := const 42;
+            f false
+        else
+            0 // failed - should never reach here
+        fi;
+    f true == 42
+done,
+'() as string': \(strIndexOf (() as string) "x" 0 == -1),
+'primitive array store': do:
+    arr = array [1];
+    p_arr = new double[1];
+    p_arr[0] := arr[0];
+    p_arr[0] == 1
+done,
+/*
+'eval load scope': do:
+    load yeti.lang.compiler.eval;
+    c = evaluateYetiCode [SourceReader \'module foo; x = 4; ()'];
+    case (c [Bind ()] 'r = load foo; r').result of
+    Result _: ();
+    ...
+    esac;
+    case (c [] 'x').result of
+    CompileException _: true;
+    ...
+    esac
+done,
+'typevars in map': do:
+    testModule = """
+        module test;
+        typedef obj = { f is () -> 'a }
+        st d = { data = d, ix x y =
+            case d of A aa: a = aa[x]; a[y]; B bb: b = bb[y]; b[x]; esac };
+        mk s = s with { f () = st (A (array [[1]])); };
+        { mk } as { mk is obj -> obj }
+    """;
+    load yeti.lang.compiler.eval;
+    modules = array [];
+    compileYetiFiles [SourceReader \testModule] [Type (push modules)]
+                     ['test.yeti'];
+    length modules == 1
+done,
+*/
+'\case of 1': do:
+    rs = "[\("")]";
+    f st = \case of
+        Token n: Error rs `const` OK n
+        esac;
+    f "" (Token "foo") == Error "[]"
+done,
+'\case of 2': do:
+    rs = "[\("")]";
+    f st = \case of
+        Token n: Error rs `const` OK n
+        esac;
+    id f "" (Token "foo") == Error "[]"
+done,
+/*
+'evil2': do:
+    expectCompileError
+       'var id x = x;
+        do:
+                z = { a = id }.a;
+                println (z "a");
+                println (z 42)
+        done (id := do x: x + 1 done)'
+done,
+'mutability and polymorphism': do:
+    expectCompileError
+     """var v = None ();
+        o = { setValue x = v := Some x, value () = v };
+        o.setValue 'kala';
+        case o.value () of
+        Some x: println (x + 2);
+        None _: println "None";
+        esac"""
+done,
+'value restriction with non-polymorphic fields': do:
+    expectCompileError
+       'x = lazy \{var z = [], get last () = head z};
+        count () = length (x ()).last.fubar;
+        (x ()).z := { tomato = false } :: (x ()).z;
+        count () |> println;'
+done,
+'struct polymorphism restrictions 1': do:
+    // Problem arises when x is allowed to be polymorphic, although containing
+    // no typevars. Because var z is property of structure type instance, not
+    // the field type inside that structure, a copy is made of polymorphic x,
+    // when x.z := happens, causing the assigned type to be unified with
+    // _copy_ of the structure type inferred in count function.
+    expectCompileError
+       'x = {var z = [], get last () = head z};
+        count () = length x.last.fubar;
+        x.z := { fubar = [], get tomato () = false } :: [];
+        x.last.fubar := "hi" :: x.last.fubar;
+        count () |> println;'
+done,
+'struct polymorphism restrictions 2': do:
+    // Test variation of same problem as the previous struct polymorphism test.
+    // Here the .bar member gets introduced into the structure in count2,
+    // and gets lost if the x together with last has been copied (allowing
+    // a structure without bar assigned, and causing runtime error when
+    // running count2).
+    expectCompileError
+       'x = {var z = [], get last () = head z};
+        count () = length x.last.fubar;
+        count2 () = length x.last.bar;
+        x.z := [{fubar=[true]}];
+        count2 () |> println;'
+done,
+'invalid escaping polymorphism': do:
+    expectCompileError
+     """v = (var x = [];
+             r a b =
+               (f a = x := a;
+                g () = head x;
+                a f;
+                b g);
+             r);
+        v (_ f = f [true]) \();
+        v \() (_ g = println (g () + 3))"""
+done,
+'invalid escaping polymorphism 2': do:
+    expectCompileError
+     """v = (var x = [];
+             do a b:
+                a (_ v = x := v);
+                b (head x)
+             done);
+        v ([true] |>) \();
+        v \() (println . (+3));"""
+done,
+*/
+'struct field polymorphism': do:
+    x = { f a = a };
+    x.f 5 == 5 and x.f true
+done,
+/*
+'non-polymorphic type vars in module': do:
+    src = 'module nonpoly;
+        var x = [];
+        {
+            f a = x := a,
+            g () = head x
+        }';
+    try
+        load yeti.lang.compiler.eval;
+        compileYetiFiles [SourceReader \src] [Type \()] ['nonpoly.yeti'];
+        false
+    catch yeti.lang.compiler.CompileException e:
+        e#getMessage() =~ 'defined'
+    yrt
+done,
+*/
+'case of variant list': do:
+    case [A 1, A 2] of [A a, A b]: a + b; ... esac == 3
+done,
+
+//'base64': do:
+//    bytes = map (_ n = [1..n]) [0..0xff];
+//    map (base64Decode . base64Encode) bytes == bytes
+//done,
+'tailrec2': do:
+    foo = {
+        maxPos = 8,
+        var board = false,
+        hasWon _ = board,
+        check me op =
+            if hasWon op then
+                1
+            else
+                (tryPos best pos =
+                    if pos > maxPos or best > 0 then
+                        best
+                    else
+                        board := true;
+                        res = check op me;
+                        if res > best then
+                            tryPos res (pos + 1)
+                        else
+                            tryPos best (pos + 1)
+                        fi
+                    fi) (-2) maxPos
+            fi,
+    };
+    foo.check 'O' 'X' == 1
+done,
+'tailrec4': do:
+    foo = {
+        maxPos = 8,
+        var board = false,
+        hasWon _ = board,
+        check me op =
+            if hasWon op then
+                1
+            else
+                (tryPos a b best pos =
+                    if pos > maxPos or best > 0 then
+                        best
+                    else
+                        board := true;
+                        res = check op me;
+                        if res > best then
+                            tryPos a b res (pos + 1)
+                        else
+                            tryPos a b best (pos + 1)
+                        fi
+                    fi) 'a' 'b' (-2) maxPos
+            fi,
+    };
+    foo.check 'O' 'X' == 1
+done,
+'method-tailrec4': do:
+    tr a b c d =
+        if c == 'wtf' then
+            a
+        else
+            tr true b 'wtf' 0
+        fi;
+    tr false 0 'test' 0
+done,
+'module-var-fun': do:
+    load mvarfun;
+    (f ()).v == [true]
+done,
+'modify-var-fun-ref': do:
+    var cached _ = {v=false};
+    st = { f x = cached x, setf f = cached := f };
+    st.setf (const {v=true});
+    (st.f ()).v
+done,
+'Case.': do:
+    f x is Case. 'b -> 'b = case x of Case a: a esac;
+    f (Case 42) == 42
+done,
+'like' : do:
+    fn = like 'ab*' "abbcdefabh";
+    "abb" == (fn())[0] 
+    and "ab" == (fn())[0] 
+    and empty?( fn());
+done,
+'matchAll' : do:
+    r = matchAll 'x+' do a:S a[0]done E 'x00xx0x0';
+    [S 'x', E '00',S 'xx', E '0',S 'x',E '0'] == r;
+done,
+
+'fold' : do:
+    fold (+) 1 [1,2,3,4] == 11
+done,
+
+'filter' : do:
+    filter ((0 ==).(% 2)) [1,2,3,4] == [2,4]
+done,
+'range' : do:
+    [0..3] == [0,1,2,3];
+done,
+
+'forEach' : do:
+    var sum = 0;
+    [1..4] |> forEach do n: sum := sum + n done;
+    sum == 10;
+done,
+
+'map' : do:
+    ([1..4] |> map (+ 1)) == [2..5]
+done,
+
+'strJoin' : do:
+    (strJoin "," ["foo","bar","foo"]) == "foo,bar,foo";
+done,
+
+'strPad' : do:
+    (strPad "*" 5 "a") == "a****" and
+    (strPad "*" 2 "12") == "12";
+done,
+
+'strCap' : do:
+    strCapitalize "aaa" == "Aaa"
+    and strCapitalize "" == "";
+done,
+
+'strUncap' : do:
+    strUncapitalize "AAA" == "aAA"
+    and strUncapitalize "" == "";
+done,
+'map2' : do:
+    map2 (+) [1..3] [1,1,1] == [2,3,4];
+done,
+
+'revAppend' : do:
+    revAppend [1..3] [4..6] == [3, 2, 1, 4, 5, 6]
+done,
+
+'splitBy' : do:
+    splitBy (> 4) [1..10] == pair [1..4] [5..10] and
+    splitBy (> 5) [1..5] == pair [1..5] [] and
+    splitBy (< 5) [1..5] == pair [] [1..5];
+done,
+'avoid' : do:
+    (avoid (<5) [1..10]) == 5
+    and
+    (avoid (<5) [1..3]) == 3
+done,
+'case Some' : do:
+    (case (Some (Some (Some 1))) of
+    Some (Some (Some x)) : x;
+    esac
+    == 1)
+    and
+    (case (Some (Some (Foo 2))) of
+    Some (Some (Foo x)) : x;
+    esac
+    == 2)
+    and
+    (case (Some . Some . Foo) 2 of
+    Some (Some (Foo x)) : x;
+    esac
+    == 2)
+done,
+
+'failWith' : do:
+    try failWith "foo"; false catch JSValue x: string x == "foo" yrt
+    and
+    try throw "foo"; false catch JSValue x: string x == "foo" yrt
+    and
+    try (throw . id) "foo"; false catch JSValue x: string x == "foo" yrt
+    and
+    try (failWith . id) "foo"; false catch JSValue x: string x == "foo" yrt
+done,
+
+'if seq' : do:
+    foo = if true then 1 else 2 fi;
+    var v = 2;
+    v := if true then 1 else 2 fi;
+
+    if true then 1 else 2 fi == 1
+    and
+    v == 1
+    and
+    foo == 1
+done,
+'test hide std' : do:
+    id x y = x + y;
+    id 1 2 == 3;
+done,
+
+'test same bind in branch': do:
+    _ = if true then
+        x = 1;
+        true;
+    else
+        x = 2;
+        false;
+    fi;
+    true
+done,
+
+];
+var bad = 0;
+
+forHash trueTests do name f:
+    try
+        if not (f ()) then
+            throw "false"
+        fi
+    catch Object ex:
+        bad := bad + 1;
+        println "\(name) failed \(ex)"
+    yrt
+done;
+
+total = length trueTests;
+println "Testing done, \(total - bad)/\(total) OK.";

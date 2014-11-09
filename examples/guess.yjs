@@ -1,0 +1,10 @@
+given = randomInt 1000 + 1;
+println "Thought a number in range 1...1000, guess it?";
+(guess n =
+   (v = (randomInt 1000) + 1;
+    if v == given then
+        println "Correct! \(n) tries.";
+    else
+        println if v < given then "Too small." else "Too big." fi;
+        guess (n + 1);
+    fi)) 1;

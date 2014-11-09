@@ -1,0 +1,13 @@
+Difference to yeti
+- modules are integrated in main-file (no extra compilation)
+- no property-fields
+- hash uses only strings as keys (like js objects)
+- scoping
+- build in operators can not be changed (=== + etc)
+- lists are arrays
+- no synchonized
+- script keyword
+- CurrentScope is only static Object and calls directly in socpe of js
+- ~Object is the only JavaScript type
+- Some is just value, none is null, empty list is empty array
+- no hashdefault

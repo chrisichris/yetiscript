@@ -1,0 +1,16 @@
+module mods.fib;
+//no hashDefault in yjs
+// memoizing algorithm
+fibs = [string 0: 0, string 1: 1];
+
+fibFn x = 
+    if string x in fibs then
+        fibs[string x]
+    else
+        res = fibFn (x - 1) + fibFn (x - 2);
+        fibs[string x] := res;
+        res
+    fi;
+        
+// public interface
+fibFn

@@ -1,0 +1,382 @@
+/*
+ * This source file is part of the Yeti compiler.
+ *
+ * Copyright (c) 2008-2013 Madis Janson
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. The name of the author may not be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR "AS IS" AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+import java.net.URLEncoder;
+load yeti.lang.compiler.showtype;
+
+doc_dir = _argv[0];
+
+/* TODO
+ * links to typedefs, typedefs in different modules and java class javadocs
+ * maybe A | B | C should be A\n| B\n| C, instead of | in the eol
+ * ... general style improvements, make it look nicer?
+ */
+
+formatType template =
+   (var cur = '';
+    var big = false;
+    var depth = 0;
+    var st _ _ = '';
+    leftArrow = template.escape '<';
+    rightArrow = template.escape '>';
+
+    format indent t =
+       (old = cur;
+        depth := depth + 1;
+
+        enclose s t =
+            case t of
+            Function _: "(\(s))";
+            Variant (_ :: _): "(\(s))";
+            _: s;
+            esac;
+
+        dataType l variant =
+           (types = [:];
+            var flag = false;
+            for l do {name, type}:
+                big := false;
+                var str = format indent type;
+                if variant then
+                    str := enclose str type
+                fi;
+                types[name] := str;
+                flag := flag or big
+            done;
+            titles = [:];
+            setHashDefault titles \'';
+            fieldDesc f =
+               (fn = f.name;
+                var description = f.description;
+                var group = '';
+                m = like '[\s*]*Group: +(\w+)(?: +\(([^\n)]*)\))?\s*\*?'
+                    description ();
+                if not empty? m then
+                    description := strRight description (strLength m[0]);
+                    group := m[1];
+                    if m[2] != '' then
+                        titles[group] := m[2]
+                    fi
+                fi;
+                nameStr = if variant or fn =~ '^\w' then fn else "(\(fn))" fi;
+                f is typeitem!<type> with { typeStr = types[fn], nameStr,
+                         description, group, var groupTitle = ''});
+            sortKey f = [f.group, f.nameStr];
+            fields = sortBy (on (<) sortKey) (map fieldDesc l);
+            for fields do f: f.groupTitle := titles[f.group] done;
+            docs = not empty? (find ((!= '') . (.description)) fields);
+            big := docs or flag or length l >= 3;
+            cur := if variant then 'variant' else 'struct' fi;
+            { big, docs, fields = array fields, top = depth == 1 });
+
+        other s =
+            if cur != '' then
+                cur := '';
+                template.other s
+            else
+                s
+            fi;
+
+        s = case t of
+            Struct  l: template.struct (dataType l false);
+            Variant l: template.variant (dataType l true);
+
+            Function l:
+                var flag = false;
+                fields = array [];
+                for l do type:
+                    big := false;
+                    push fields (enclose (format indent type) type);
+                    flag := flag or big
+                done;
+                big := flag or length fields > 4;
+                template.function {big, docs = false, fields, top = depth == 1};
+     
+            Parametric {type, params}:
+                res = strJoin ', ' (map (format indent) params);
+                other (type ^ leftArrow ^ res ^ rightArrow);
+
+            Alias {type, alias}:
+                other "(\(template.alias alias (format indent type)))";
+
+            _:
+                other (st indent t);
+            esac;
+        depth := depth - 1;
+        cur := old;
+        s);
+
+    st := showType (ShowType format :: template.options);
+    format);
+
+(@) = strReplace '<' '&lt;' . strReplace '>' '&gt;' . strReplace '&' '&amp;';
+
+parseDoc' doc =
+   (mticks = matchAll '`([^`]*)`|("(?:[^"]|\\.)*")'
+        (_ s = (s = s[1] ^ s[2];
+                if s != '' then "<var>\(s)</var>" else: '`'));
+    ticks = strJoin '' . mticks id;
+    listState to pattern line =
+        case pattern line () of
+        [_, arg, text]:
+            push to {arg, text = array [ticks text]};
+        _:
+            if empty? to then
+                push to {arg = "???", text = array [line]}
+            else
+                push to[length to - 1].text (ticks line)
+            fi
+        esac;
+    var code = false;
+    withCode to line =
+       (was = code;
+        code := strStarts? line ':';
+        if not was and code then
+            push to '<pre>'
+        elif was and not code then
+            push to '</pre>'
+        fi;
+        push to if code then strRight line 1 else ticks line fi);
+    doc = map strTrim (strSplit "\n" (substAll "(?:^|\n[ \\t]+)\\*" "\n" doc@));
+    about = array [];
+    args = array [];
+    description = array [];
+    exceptions = array [];
+    examples = array [];
+    seeAlso = array [];
+    notes = array [];
+    var prev = '';
+    var state = push about;
+    for doc do line:
+        if prev == '' then
+            case line of
+            'Arguments:': state := listState args
+                            (like '^(\w++|\(\))\s++-(?:\s++(.*))?$');
+            'Description:': state := withCode description;
+            'Exceptions:': state := listState exceptions
+                            (like '^([\w.]++)\s++-(?:\s++(.*))?$');
+            'Examples:': state := withCode examples;
+            'See also:': state := push seeAlso;
+            'Notes:': state := withCode notes;
+            _: state line
+            esac
+        else
+            state line
+        fi;
+        prev := line
+    done;
+    arg_list = map (.arg) args;
+    join = map (strJoin "\n") . filter ((not) . ('' ==) . head)
+                              . groupBy (on (==) ('' ==));
+    arg_set = hash arg_list;
+    map strCapitalize arg_list |> hash |> insertHash arg_set;
+    mark_arg a =
+        if a[0] in arg_set then "<var>\(a[0])</var>" else a[0] fi;
+    mark_args = strJoin '' . mticks (strJoin '' .  matchAll '\w+' mark_arg id);
+    lines = strJoin '<p></p>';
+    show pre post f v = if not empty? v then "\(pre)\(f v)\(post)" fi;
+    text what = show "<p>\(what)</p>" '' (lines . join);
+    descr = if not all empty? [args, exceptions] or
+              not all empty? [about, description, examples, seeAlso, notes] then
+        state ''; // </pre> if needed
+        arg {arg, text} =
+            "<tr><td><var>\(arg)</var><td>-<td class=arg>\(lines (join text))";
+        "<div class=\"doc\">\(lines (map mark_args (join about)))\
+        "\(show '<table class="args">' '</table>' (strJoin '' . map arg) args)\
+        "\(show '<p>Exceptions thrown</p><table class="args">'
+                '</table>' (strJoin '' . map arg) exceptions)\
+        "\(text 'Description' description)\
+        "\(text 'Examples' examples)\
+        "\(text 'See also' seeAlso)\
+        "\(text 'Notes' notes)</div>"
+    fi;
+    {descr, args = arg_list, raw_doc = doc});
+
+parseDoc doc =
+    if doc != '' then
+        parseDoc' doc
+    else
+        {descr = undef_str, args = [], raw_doc = []}
+    fi;
+
+formatDoc _ doc =
+    (parseDoc doc).descr;
+
+html_prelude =
+'<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html><meta http-equiv="Content-Type" content="text/html;charset=utf-8" >';
+
+html_page {name, descr, moduleType, typedefs} =
+"""\(html_prelude)<style type="text/css">
+.main { background: white; line-height: 130%; font-family: sans-serif }
+.type { background: white; font-size: 12pt; }
+.sn { font: 13pt monospace }
+.vn { font-size: 13pt }
+.other { background: #cccccc; display: inline; }
+.field { padding: 1.5pt }
+.wdoc { padding-top: 0.5em; padding-bottom: 0.4em; }
+var { font: 11pt monospace }
+.args { padding-left: 1.4em }
+.args tr td { vertical-align: text-top }
+td.arg { width: 100% }
+/*.wdoc { margin-top: 0.6em; margin-bottom: 0.6em; } */
+.box { border: 1px solid black;
+    /* top/bottom right/left | top right/left bottom | top right bottom left */
+    padding: 1px 0.1em 1pt;
+    margin: 1px 1pt 0pt;
+    display: inline-block; }
+.module { color: #000080 }
+.group { font: 16pt sans-serif; border-bottom: solid black 1px;
+         padding: 0px; margin: 0.5em 0px; text-align: center }
+em { color: #000080; font: bold 13pt sans-serif }
+.function { background: #ffffff }
+.struct { background: #ffffff }
+.variant { background: #c7c7ff }
+/* background: #bbffbb; */
+.ft { padding-left: 0em }
+.doc { background: #ffffa8;
+    padding: 0.5em 0.5em 0.5em 2em;
+    font-size: 12pt; }
+.contents { background: #dddddd; padding: 0.5em; font-size: 10pt }
+.contents a { text-decoration: none }
+.contents a:hover { text-decoration: underline }
+.doc p { margin: 0.6em 0px 1px; font-weight: bold }
+.doc pre { background: #ffffc8;
+    border: 1px dashed black;
+    margin: 0.3em 1.5em 0.3em 0px;
+    padding: 0.3em; overflow: auto }
+</style><title>\(name@)</title>
+<body>
+<div class="main">
+<h2><span class=module>module</span> \(name@)</h2>
+\(descr)<p>\(typedefs)
+<h3>Module signature</h3>
+<div class="type">\(moduleType)</div>
+</div>
+</body></html>""";
+
+complexType what before sep after f {big, docs, top, fields} =
+   (style = if docs then '"field wdoc"' else 'field' fi;
+    contents = array [];
+    var lastGroup = '';
+    str sep field' =
+       ({descr, name, type, group, groupTitle} = f sep field';
+        var s = strJoin '' type;
+        if groupTitle != '' and groupTitle != lastGroup then
+            if name != '' then
+                if not empty? contents then push contents "<br>" fi;
+                push contents "<a href=\"#\(group)\">\(groupTitle@)</a>: "
+            fi;
+            s := "<div id=\(group) class=group>\(groupTitle@)</div>\(s)";
+            lastGroup := groupTitle
+        fi;
+        if big then
+            idattr = if name != '' then
+                         ref = URLEncoder#encode(name, 'UTF-8');
+                         push contents "<a href=\"#\(ref)\">\(name)</a>";
+                         "id=\"\(name@)\" "
+                     fi;
+            "<div \(idattr)class=\(style)>\(s)\(descr)</div>\n"
+        else
+            s
+        fi);
+    last = pop fields;
+    var fields = map' (str sep) fields ++ [str '' last];
+    contents =
+        if big and length fields > 10 and not empty? contents then
+            "<div class=contents>\(strJoin ' ' contents)</div>"
+        fi;
+    if big then
+        block = if top then ' style="display: block; margin: 2pt"' fi;
+        fields := "<div class=\"box \(what)\"\(block)>"
+                    :: contents :: fields ++ ["</div>"]
+    fi;
+    strJoin '' (before :: fields ++ [after]));
+
+to_html = formatType {
+    struct = complexType 'struct' '<em>{</em>' ', ' '<em>}</em>' do sep f:
+        {descr, args} = parseDoc f.description;
+        args = map (_ arg = " <var>\(arg)</var>") args;
+        type = concat [[if f.mutable then '<em>var </em>' fi,
+                        '<span class=sn>', f.tag, (f.nameStr@), '</span>'],
+                       args, ['<em> is </em>', f.typeStr, sep]];
+        {descr, type, name = f.name,
+         group = f.group, groupTitle = f.groupTitle}
+    done,
+    variant = complexType 'variant' '' ' | ' '' do sep m:
+        {descr} = parseDoc m.description;
+        type = ['<span class=vn>', m.name, m.tag, '</span> ', m.typeStr, sep];
+        {descr, type, name = '', group = m.group, groupTitle = m.groupTitle}
+    done,
+    function = complexType 'function' '' ' &rarr; ' ''
+                           (_ sep t = {descr = '', type = [t, sep], name = '',
+                                       group = '', groupTitle = ''}),
+    alias alias type = "\(alias)<em> is </em>\(type)",
+    other descr = "<div class=\"other\">\(descr)</div>",
+    escape s =
+        case s of
+        '<': '<tt>&lt;</tt>';
+        '>': '<tt>&gt;</tt>';
+        _: (s@)
+        esac,
+    options = [FormatDoc formatDoc]
+};
+
+typedef_param param =
+    if not empty? param then "<\(strJoin ', ' param)>" fi;
+
+typedef_html {name, type, param} =
+    "<div class=\"type\"><em>typedef</em> \
+    "\(name@)\(typedef_param param@) = \(to_html '' type)</div>";
+
+modules = [:];
+
+moduleDoc {type, name, doc, typedefs, skipped} =
+   ({descr, raw_doc} = parseDoc doc;
+    if not skipped then
+        moduleType = to_html '' type;
+        page = html_page {
+            name, descr, moduleType,
+            typedefs = strJoin '<p>' (map typedef_html typedefs)
+        };
+        writeFile "\(doc_dir)/\(name).html" utf8 (`putLines` [page])
+    fi;
+    modules[name] := head ((splitBy (!= '') raw_doc).snd ++ [undef_str]));
+
+docIndex () =
+   (item name =
+        "<dt><a href=\"\(name).html\">\(name)</a><dd>\(modules[name])";
+    writeFile "\(doc_dir)/index.html" utf8 (`putLines`
+       ["\(html_prelude)<title>Module index</title>\
+        "<style type=\"text/css\">DD {margin-bottom: 0.8em}</style>\
+        "<body><div><big>Module index</big><dl>\
+        "\(keys modules |> sort |> map item |> strJoin '')\
+        "</dl></div></body></html>"]));
+
+{moduleDoc, docIndex}

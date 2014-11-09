@@ -1,0 +1,111 @@
+/*
+ * There is a legend, that some programmers prefer languages with a lot
+ * of curly braces.
+ * So this is a simple compiler that compiles `curly' language into Yeti.
+ * 
+ * Syntax is following:
+ *
+ *  begin { expressions... }
+ *      Sequencing expression, same as `;' operator in Yeti.
+ *
+ *  let { identifier value expression }
+ *      Bind expression, same as `=' operator in Yeti.
+ *
+ *  do { arguments... expression }
+ *      Lambda expression.
+ *
+ *  if { condition true-expression false-expression }
+ *      Conditional expression.
+ *
+ *  list { elements... }
+ *      List literal, same as [ element, ... ] in Yeti.
+ *
+ * Function application is simply:
+ *  identifier { arguments... }
+ *
+ * As it can be seen, the language uses _only_ curly braces. Should be good?
+ * For a good measure it also uses an infix function call syntax,
+ * as C's fubar(a, b) will become fubar{a b} in the curly language.
+ * What else curly-brace lovers could want?
+ */
+
+src = '
+/*
+ * Simple factorial function in the curly language.
+ */
+let { factorial
+    do { x
+        if { == { x 0 }
+            1
+            * { x factorial { - { x 1 } } }
+        }
+    }
+    let { print_factorial
+        do { x
+            println { ^ { ^ { "factorial " x }
+                          ^ { " = " factorial { 5 } } } }
+        }
+        print_factorial { 5 }
+    }
+}';
+
+
+compile tokens topLevel result =
+    case tokens of
+    '{' :: _:
+        throw "Unexpected {";
+    '}' :: rest:
+        if topLevel then
+            throw "Unexpected }"
+        fi;
+        {code = reverse result, rest};
+    '' :: rest:
+        compile rest topLevel result;
+    fun :: '{' :: t:
+        {code, rest = rest1} = compile t false [];
+        compile rest1 topLevel
+           (case fun of
+            'begin':
+                "(\(strJoin ";" code))";
+            'let':
+                case code of
+                [name, value, expr]:
+                    "(\(name) = \(value); \(expr))";
+                _: throw "let {name value expr}";
+                esac;
+            'do':
+                args = array code;
+                expr2 = pop args;
+                "do \(strJoin ' ' args): \(expr2) done";
+            'if':
+                case code of
+                [condition, yes, no]:
+                    "if \(condition) then \(yes) else \(no) fi";
+                _: throw "if {condition true-expression false-expression}";
+                esac;
+            'list':
+                "[\(strJoin "," code)]";
+            _:
+                "(\(strJoin " " ("(\(fun))" :: code)))";
+            esac :: result);
+    a :: '' :: rest:
+        compile (a :: rest) topLevel result;
+    a :: rest:
+        compile rest topLevel
+                (if a =~ '^[\w"]' then a else "(\(a))" fi :: result);
+    _:
+        if not topLevel then
+            throw "expected }"
+        fi;
+        {code = reverse result, rest = []}
+    esac;
+
+
+tokens = matchAll ('/\*.*?\*/|\s+|([{}])|(\w[\w''$?~]*+)|' ^
+                   '("(?:[^\\"]|\\.)*+")|([!#%&*+/<=>@^|-]++)')
+                  (avoid ((not) . defined?) . (++ ['']) . tail)
+                  (throw . ('Unexpected token: ' ^)) src;
+
+{code} = compile tokens true [];
+
+println (strJoin ';' code);

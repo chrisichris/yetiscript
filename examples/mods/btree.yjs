@@ -1,0 +1,27 @@
+module mods.btree;
+
+{
+    insert v t =
+        case t of
+        Some {left, right, value}:
+            if v < value then
+                Some {left = insert v left, right, value}
+            elif v > value then
+                Some {left, right = insert v right, value}
+            else
+                t
+            fi;
+        None (): Some {left = none, right = none, value = v};
+        esac,
+
+    exists v t =
+        case t of
+        Some {left, right, value}:
+            if v < value then
+                exists v left
+            else
+                value == v or exists v right
+            fi;
+        None (): false
+        esac,
+}

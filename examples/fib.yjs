@@ -1,0 +1,2 @@
+fb = load mods.fib;
+println (fb 10);

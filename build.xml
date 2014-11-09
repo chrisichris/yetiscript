@@ -1,0 +1,144 @@
+<!-- ex: se sts=4 sw=4 expandtab: -->
+<project name="yjs" default="rebuild" basedir=".">
+
+<target name="prepare-build">
+    <property file="properties"/>
+    <property name="asm" value="${basedir}/lib/asm-3.1-p1r.jar"/>
+    <property name="build"  value="${basedir}/.build"/>
+    <property name="jardir" value="${basedir}"/>
+    <property name="docdir" value="${build}/doc"/>
+    <available property="has.asm" file="${asm}"/>
+</target>
+
+<target name="fetch" depends="prepare-build" unless="has.asm">
+    <property name="asmt" value="${build}/asm-3.1-p1.jar"/>
+    <mkdir dir="${build}/util"/>
+    <get src="http://dot.planet.ee/yeti/asm-3.1-p1.jar"
+         dest="${asmt}" verbose="true"/>
+    <javac destdir="${build}/util" srcdir="${basedir}/util"
+           includes="Rename.java" encoding="UTF-8"
+           includeantruntime="false"/>
+    <java classname="yeti.lang.Rename" failonerror="true"
+          classpath="${build}/util">
+        <arg value="${asmt}"/>
+        <arg value="${asm}"/>
+    </java>
+</target>
+
+
+<target name="lib" depends="fetch" unless="no.lib.build">
+    <mkdir dir="${build}/util"/>
+    <javac destdir="${build}/util" srcdir="${basedir}/util"
+           includes="SpecialLib.java" encoding="UTF-8" classpath="${asm}"
+           includeantruntime="false"/>
+    <java classname="yeti.lang.SpecialLib" failonerror="true"
+          classpath="${asm}:${build}/util">
+        <arg value="pre"/>
+        <arg value="${build}/lib"/>
+    </java>
+    <javac destdir="${build}/lib" srcdir="${basedir}/srclib" debug="on"
+        encoding="UTF-8" source="1.4" target="1.4" debuglevel="source,lines"
+        includeantruntime="false"/>
+    <java classname="yeti.lang.SpecialLib" failonerror="true"
+          classpath="${asm}:${build}/util">
+        <arg value="tr"/>
+        <arg value="${build}/lib"/>
+    </java>
+</target>
+
+<target name="checklib">
+    <available property="no.lib.build" file="${build}/lib" type="dir"/>
+</target>
+
+
+<target name="compiler" depends="checklib,lib">
+    <mkdir dir="${build}/compiler"/>
+    <copy toDir="${build}/compiler">
+        <fileset dir="${basedir}/modules"/>
+    </copy>
+    <javac destdir="${build}/compiler" srcdir="${basedir}/srcc" debug="on"
+           encoding="UTF-8" source="1.7" target="1.7" debuglevel="source,lines"
+           includeantruntime="true">
+        <classpath>
+            <path location="${asm}"/>
+            <path location="${build}/lib"/>
+            <path location="${ant.home}/lib/ant.jar"/>
+        </classpath>
+    </javac>
+</target>
+
+<target name="jar" depends="compiler">
+    <property name="yeti.jar" value="${jardir}/yjs.jar"/>
+    <jar jarfile="${yeti.jar}" keepcompression="true">
+        <manifest>
+            <attribute name="Main-Class" value="yjs.lang.compiler.YJSMain"/>
+        </manifest>
+        <fileset dir="${build}/lib"/>
+        <fileset dir="${build}/compiler"
+            excludes="yjs/lang/compiler/YetiBoot*.class,${jar-excludes}"/>
+        <zipfileset src="${asm}" excludes="yeti/renamed/asm3/signature/*"/>
+    </jar>
+</target>
+
+
+<target name="taskdef" depends="jar">
+    <taskdef name="yetic" classname="yjs.lang.compiler.YJSTask"
+        classpath="${basedir}/yjs.jar"/>
+</target>
+
+<target name="compileTest" depends="jar">
+    <mkdir dir="${build}/test"/>
+    <javac srcdir="${basedir}/tests" destdir="${build}/test" 
+        includeantruntime="true" source="1.7" target="1.7"
+        debuglevel="source,lines" nowarn="yes" debug="true">    
+        <classpath>
+            <path location="${jardir}/yjs.jar"/>
+        </classpath>
+    </javac>
+</target>
+
+<target name="junit" depends="compileTest">
+  <junit printsummary="yes" haltonfailure="yes">
+    <classpath>
+        <pathelement location="${jardir}/yjs.jar" />    
+        <pathelement location="${build}/test"/>
+    </classpath>    
+    <formatter type="plain"/>
+    <batchtest>
+        <fileset dir="${basedir}/tests">
+            <include name="**/*Test*.java" />
+       </fileset>
+    </batchtest>
+  </junit>
+</target>   
+
+<target name="yjstest" depends="taskdef">
+    <yetic src="${basedir}/tests/test.yjs" 
+            destDir="${build}"
+            run="true"/>
+</target>
+
+<target name="examples" depends="taskdef">
+    <yetic srcDir="${basedir}/examples" 
+            destDir="${build}"
+            run="true"/>
+</target>
+<target name="test" depends="yjstest, junit"/>
+
+<target name="allTests" depends="clean,test,examples"/>
+
+
+
+
+
+<target name="clean" depends="prepare-build">
+    <delete dir="${build}"/>
+</target>
+
+<target name="rebuild" depends="clean,test"/>
+
+<target name="checkjar">
+    <available property="no.jar.build" file="${jardir}/yjs.jar"/>
+</target>
+
+</project>

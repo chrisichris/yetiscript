@@ -1,0 +1,12 @@
+bottles =
+   \case of
+    0: "no more bottles of beer";
+    1: "1 bottle of beer";
+    n: "\(n) bottles of beer";
+    esac;
+
+for (reverse [1 .. 99]) do n:
+    println "\(bottles n) on the wall, \(bottles n)\n\
+            "Take one down, pass it around,\n\
+            "and there's \(bottles (n - 1)) on the wall!";
+done

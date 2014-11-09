@@ -1,0 +1,326 @@
+<?xml version="1.0"?>
+<!DOCTYPE MODE SYSTEM "xmode.dtd">
+<MODE>
+	<PROPS>
+		<PROPERTY NAME="indentOpenBrackets" VALUE="{"/>
+		<PROPERTY NAME="indentCloseBrackets" VALUE="}"/>
+		<PROPERTY NAME="unalignedOpenBrackets" VALUE="(" />
+		<PROPERTY NAME="unalignedCloseBrackets" VALUE=")" />
+		<PROPERTY NAME="lineUpClosingBracket" VALUE="TRUE"/>
+		<PROPERTY NAME="multipleBracketIndent" VALUE="TRUE" />
+		<PROPERTY NAME="commentStart" VALUE="/*"/>
+		<PROPERTY NAME="commentEnd" VALUE="*/"/>
+		<PROPERTY NAME="lineComment" VALUE="//"/>
+		<PROPERTY NAME="noWordSep" VALUE="_?'"/>
+		<!--
+		<PROPERTY NAME="indentNextLines" VALUE="\s*(if|case|try|class)\s.*"/>
+		<PROPERTY NAME="unindentThisLine" VALUE="^\s*(else\s*|elif\s.*|catch\s.*|finally\s*)$"/>
+		<PROPERTY NAME="unindentNextLines" VALUE="^\s*(fi|esac|done|end)[;\s]*$"/>
+		-->
+	</PROPS>
+
+	<RULES IGNORE_CASE="FALSE" HIGHLIGHT_DIGITS="TRUE" NO_WORD_SEP="#$?'"
+	       DIGIT_RE="[+-]?\d+(?:\.\d+)(?:eE(?:[+-]?\d+)?)?|0x[0-9A-Fa-f]+">
+
+		<SPAN TYPE="COMMENT1">
+			<BEGIN>/*</BEGIN>
+			<END>*/</END>
+		</SPAN>
+		<EOL_SPAN TYPE="COMMENT2">//</EOL_SPAN>
+
+		<SEQ_REGEXP TYPE="LABEL" HASH_CHARS="ABCDEFGHIJKLMNOPQRSTUVWXYZ" AT_WORD_START="TRUE">[A-Z]\w*(?=[^\w#$?']|$)</SEQ_REGEXP>
+
+		<SPAN TYPE="LITERAL1" DELEGATE="DOUBLE_QUOTE">
+			<BEGIN>"""</BEGIN>
+			<END>"""</END>
+		</SPAN>
+
+		<SPAN TYPE="LITERAL1" DELEGATE="DOUBLE_QUOTE" NO_LINE_BREAK="TRUE">
+			<BEGIN>"</BEGIN>
+			<END>"</END>
+		</SPAN>
+
+		<SPAN TYPE="LITERAL1" AT_WORD_START="TRUE">
+			<BEGIN>'</BEGIN>
+			<END>'</END>
+		</SPAN>
+
+		<SPAN DELEGATE="MAIN"><BEGIN>(</BEGIN><END>)</END></SPAN>
+		<SPAN MATCH_TYPE="OPERATOR" DELEGATE="MAIN">
+			<BEGIN>[</BEGIN>
+			<END>]</END>
+		</SPAN>
+		<SPAN MATCH_TYPE="OPERATOR" DELEGATE="MAIN">
+			<BEGIN>{</BEGIN>
+			<END>}</END>
+		</SPAN>
+		<SPAN_REGEXP MATCH_TYPE="KEYWORD2" TYPE="MARKUP"
+		             AT_WORD_START="TRUE" HASH_CHAR="import">
+			<BEGIN>import\b</BEGIN>
+			<END>;</END>
+		</SPAN_REGEXP>
+		<SPAN_REGEXP MATCH_TYPE="KEYWORD2" TYPE="MARKUP"
+		             AT_WORD_START="TRUE" HASH_CHAR="program">
+			<BEGIN>program\b</BEGIN>
+			<END>;</END>
+		</SPAN_REGEXP>
+		<SPAN_REGEXP MATCH_TYPE="KEYWORD2" TYPE="MARKUP"
+		             AT_WORD_START="TRUE" HASH_CHAR="module">
+			<BEGIN>module\b</BEGIN>
+			<END>;</END>
+		</SPAN_REGEXP>
+		<SPAN_REGEXP MATCH_TYPE="KEYWORD1" AT_WORD_START="TRUE"
+		             HASH_CHAR="do" DELEGATE="MAIN">
+			<BEGIN>do\b</BEGIN>
+			<END REGEXP="TRUE">(?:^|\W)done\b</END>
+		</SPAN_REGEXP>
+		<SPAN_REGEXP MATCH_TYPE="KEYWORD1" AT_WORD_START="TRUE"
+		             HASH_CHAR="if" DELEGATE="IF_STATEMENT">
+			<BEGIN>if\b</BEGIN>
+			<END REGEXP="TRUE">(?:^|\W)(?:else:|fi\b)</END>
+		</SPAN_REGEXP>
+		<SPAN_REGEXP MATCH_TYPE="KEYWORD1" AT_WORD_START="TRUE"
+		             HASH_CHAR="case" DELEGATE="MAIN">
+			<BEGIN>case\b</BEGIN>
+			<END REGEXP="TRUE">(?:^|\W)esac\b</END>
+		</SPAN_REGEXP>
+		<SPAN_REGEXP MATCH_TYPE="KEYWORD1" AT_WORD_START="TRUE"
+		             HASH_CHAR="try" DELEGATE="TRY_STATEMENT">
+			<BEGIN>try\b</BEGIN>
+			<END REGEXP="TRUE">(?:^|\W)yrt\b</END>
+		</SPAN_REGEXP>
+		<SPAN_REGEXP MATCH_TYPE="KEYWORD1" AT_WORD_START="TRUE"
+		             HASH_CHAR="class" DELEGATE="CLASS_DEF">
+			<BEGIN>class\b</BEGIN>
+			<END REGEXP="TRUE">(?:^|\W)end\b</END>
+		</SPAN_REGEXP>
+		<SPAN_REGEXP MATCH_TYPE="MARKUP" AT_WORD_START="TRUE"
+		             HASH_CHARS="aitu" DELEGATE="TYPE">
+			<BEGIN>(?:[ai]s|unsafely_as)\b|typedef\s[^=]*=</BEGIN>
+			<END REGEXP="TRUE">(?=[=:;,)}\]]|(?:if|case|esac|try|class|[ai]s|unsafely_as|typedef|fi)\b)</END>
+		</SPAN_REGEXP>
+		<SPAN_REGEXP MATCH_TYPE="OPERATOR" TYPE="MARKUP"
+		             AT_WORD_START="TRUE" HASH_CHAR="new">
+			<BEGIN>new\b</BEGIN>
+			<END REGEXP="TRUE">(?=\()</END>
+		</SPAN_REGEXP>
+
+		<SEQ_REGEXP TYPE="MARKUP" AT_WORD_START="TRUE"
+			HASH_CHAR="classOf">classOf\s+[\w.]+</SEQ_REGEXP>
+		<SEQ_REGEXP TYPE="MARKUP" AT_WORD_START="TRUE"
+			HASH_CHAR="instanceof">instanceof\s+[\w.]+</SEQ_REGEXP>
+
+		<SEQ TYPE="OPERATOR">!</SEQ>
+		<SEQ TYPE="OPERATOR">%</SEQ>
+		<!-- SEQ TYPE="OPERATOR">&gt;</SEQ -->
+		<SEQ TYPE="OPERATOR">&lt;</SEQ>
+		<SEQ TYPE="OPERATOR">*</SEQ>
+		<SEQ TYPE="OPERATOR">+</SEQ>
+		<SEQ TYPE="OPERATOR">,</SEQ>
+		<!-- SEQ TYPE="OPERATOR">-</SEQ -->
+		<SEQ TYPE="OPERATOR">/</SEQ>
+		<SEQ TYPE="OPERATOR">\</SEQ>
+		<SEQ TYPE="OPERATOR">:</SEQ>
+		<SEQ TYPE="OPERATOR">;</SEQ>
+		<SEQ TYPE="OPERATOR">=</SEQ>
+		<SEQ TYPE="OPERATOR">@</SEQ>
+		<SEQ TYPE="OPERATOR">\</SEQ>
+		<SEQ TYPE="OPERATOR">^</SEQ>
+		<SEQ TYPE="OPERATOR">~</SEQ>
+		<SEQ TYPE="INVALID">)</SEQ>
+		<SEQ TYPE="INVALID">]</SEQ>
+		<SEQ TYPE="INVALID">}</SEQ>
+
+		<KEYWORDS>
+			<KEYWORD1>throw</KEYWORD1>
+			<KEYWORD1>_</KEYWORD1>
+			<KEYWORD2>load</KEYWORD2>
+			<KEYWORD1>of</KEYWORD1>
+			<KEYWORD1>for</KEYWORD1>
+			<KEYWORD1>forHash</KEYWORD1>
+			<KEYWORD1>withExit</KEYWORD1>
+			<KEYWORD1>synchronized</KEYWORD1>
+			<KEYWORD1>loop</KEYWORD1>
+			<KEYWORD2>load</KEYWORD2>
+
+			<!-- TYPES -->
+			<KEYWORD3>get</KEYWORD3>
+			<KEYWORD3>norec</KEYWORD3>
+			<KEYWORD3>set</KEYWORD3>
+			<KEYWORD3>var</KEYWORD3>
+
+			<!-- CONSTANTS -->
+			<LITERAL2>false</LITERAL2>
+			<LITERAL2>true</LITERAL2>
+			<LITERAL2>undef_bool</LITERAL2>
+			<LITERAL2>undef_str</LITERAL2>
+			<LITERAL2>pi</LITERAL2>
+			<LITERAL2>utf8</LITERAL2>
+
+			<OPERATOR>and</OPERATOR>
+			<OPERATOR>or</OPERATOR>
+			<OPERATOR>in</OPERATOR>
+			<OPERATOR>not</OPERATOR>
+			<OPERATOR>div</OPERATOR>
+			<OPERATOR>shl</OPERATOR>
+			<OPERATOR>shr</OPERATOR>
+			<OPERATOR>xor</OPERATOR>
+			<OPERATOR>b_or</OPERATOR>
+			<OPERATOR>b_and</OPERATOR>
+
+			<FUNCTION>abs</FUNCTION>
+			<FUNCTION>all</FUNCTION>
+			<FUNCTION>any</FUNCTION>
+			<FUNCTION>array</FUNCTION>
+			<FUNCTION>at</FUNCTION>
+			<FUNCTION>contains?</FUNCTION>
+			<FUNCTION>concat</FUNCTION>
+			<FUNCTION>concatMap</FUNCTION>
+			<FUNCTION>copy</FUNCTION>
+			<FUNCTION>defined?</FUNCTION>
+			<FUNCTION>deleteAll</FUNCTION>
+			<FUNCTION>delete</FUNCTION>
+			<FUNCTION>empty?</FUNCTION>
+			<FUNCTION>flip</FUNCTION>
+			<FUNCTION>filter</FUNCTION>
+			<FUNCTION>find</FUNCTION>
+			<FUNCTION>fold</FUNCTION>
+			<FUNCTION>hash</FUNCTION>
+			<FUNCTION>index</FUNCTION>
+			<FUNCTION>id</FUNCTION>
+			<FUNCTION>keys</FUNCTION>
+			<FUNCTION>lazy</FUNCTION>
+			<FUNCTION>length</FUNCTION>
+			<FUNCTION>like</FUNCTION>
+			<FUNCTION>list</FUNCTION>
+			<FUNCTION>map</FUNCTION>
+			<FUNCTION>map'</FUNCTION>
+			<FUNCTION>max</FUNCTION>
+			<FUNCTION>maybe</FUNCTION>
+			<FUNCTION>min</FUNCTION>
+			<FUNCTION>number</FUNCTION>
+			<FUNCTION>on</FUNCTION>
+			<FUNCTION>pair</FUNCTION>
+			<FUNCTION>pop</FUNCTION>
+			<FUNCTION>push</FUNCTION>
+			<FUNCTION>reverse</FUNCTION>
+			<FUNCTION>same?</FUNCTION>
+			<FUNCTION>shift</FUNCTION>
+			<FUNCTION>string</FUNCTION>
+			<FUNCTION>sum</FUNCTION>
+			<FUNCTION>threadLocal</FUNCTION>
+
+			<INVALID>done</INVALID>
+			<INVALID>yrt</INVALID>
+			<INVALID>fi</INVALID>
+			<INVALID>esac</INVALID>
+		</KEYWORDS>
+	</RULES>
+
+	<RULES DEFAULT="LITERAL1" SET="DOUBLE_QUOTE">
+		<SPAN DELEGATE="MAIN" TYPE="OPERATOR">
+			<BEGIN>\(</BEGIN>
+			<END>)</END>
+		</SPAN>
+		<SEQ TYPE="LITERAL4">\"</SEQ>
+		<SEQ TYPE="LITERAL4">\\</SEQ>
+		<SEQ TYPE="LITERAL4">\a</SEQ>
+		<SEQ TYPE="LITERAL4">\b</SEQ>
+		<SEQ TYPE="LITERAL4">\e</SEQ>
+		<SEQ TYPE="LITERAL4">\f</SEQ>
+		<SEQ TYPE="LITERAL4">\n</SEQ>
+		<SEQ TYPE="LITERAL4">\r</SEQ>
+		<SEQ TYPE="LITERAL4">\t</SEQ>
+		<SEQ TYPE="LITERAL4">\0</SEQ>
+		<SEQ TYPE="LITERAL4">\'</SEQ>
+		<SEQ_REGEXP HASH_CHAR="\x" TYPE="LITERAL4">\\x[a-f\d]{2}</SEQ_REGEXP>
+		<SEQ_REGEXP HASH_CHAR="\u" TYPE="LITERAL4">\\u[a-f\d]{4}</SEQ_REGEXP>
+	</RULES>
+
+	<RULES SET="IF_STATEMENT"
+	       IGNORE_CASE="FALSE" HIGHLIGHT_DIGITS="TRUE" NO_WORD_SEP="#$?'"
+	       DIGIT_RE="[+-]?\d+(?:\.\d+)(?:eE(?:[+-]?\d+)?)?|0x[0-9A-Fa-f]+">
+		<IMPORT DELEGATE="MAIN"/>
+		<KEYWORDS>
+			<KEYWORD1>then</KEYWORD1>
+			<KEYWORD1>elif</KEYWORD1>
+			<KEYWORD1>else</KEYWORD1>
+		</KEYWORDS>
+	</RULES>
+
+	<RULES SET="TRY_STATEMENT"
+	       IGNORE_CASE="FALSE" HIGHLIGHT_DIGITS="TRUE" NO_WORD_SEP="#$?'"
+	       DIGIT_RE="[+-]?\d+(?:\.\d+)(?:eE(?:[+-]?\d+)?)?|0x[0-9A-Fa-f]+">
+		<IMPORT DELEGATE="MAIN"/>
+		<SPAN_REGEXP MATCH_TYPE="KEYWORD1" TYPE="MARKUP"
+		             AT_WORD_START="TRUE" HASH_CHAR="catch">
+			<BEGIN>catch\b</BEGIN>
+			<END>:</END>
+		</SPAN_REGEXP>
+		<KEYWORDS>
+			<KEYWORD1>finally</KEYWORD1>
+		</KEYWORDS>
+	</RULES>
+
+	<RULES SET="CLASS_DEF"
+	       IGNORE_CASE="FALSE" HIGHLIGHT_DIGITS="TRUE" NO_WORD_SEP="#$?'"
+	       DIGIT_RE="[+-]?\d+(?:\.\d+)(?:eE(?:[+-]?\d+)?)?|0x[0-9A-Fa-f]+">
+		<IMPORT DELEGATE="MAIN"/>
+		<KEYWORDS>
+			<KEYWORD1>extends</KEYWORD1>
+			<KEYWORD3>boolean</KEYWORD3>
+			<KEYWORD3>byte</KEYWORD3>
+			<KEYWORD3>char</KEYWORD3>
+			<KEYWORD3>double</KEYWORD3>
+			<KEYWORD3>float</KEYWORD3>
+			<KEYWORD3>int</KEYWORD3>
+			<KEYWORD3>long</KEYWORD3>
+			<KEYWORD3>short</KEYWORD3>
+			<KEYWORD3>void</KEYWORD3>
+		</KEYWORDS>
+	</RULES>
+
+	<RULES SET="TYPE" IGNORE_CASE="FALSE" NO_WORD_SEP="?">
+		<SPAN TYPE="COMMENT1">
+			<BEGIN>/*</BEGIN>
+			<END>*/</END>
+		</SPAN>
+		<EOL_SPAN TYPE="COMMENT2">//</EOL_SPAN>
+
+		<SEQ TYPE="KEYWORD3">-&gt;</SEQ>
+		<SEQ TYPE="KEYWORD3">|</SEQ>
+		<SEQ TYPE="OPERATOR">,</SEQ>
+		<SEQ TYPE="MARKUP">[]</SEQ>
+		<SEQ TYPE="MARKUP">!</SEQ>
+		<SEQ_REGEXP TYPE="MARKUP" HASH_CHAR="~">~[\w$.]+</SEQ_REGEXP>
+		<SPAN MATCH_TYPE="OPERATOR" DELEGATE="MAIN">
+			<BEGIN>{</BEGIN>
+			<END>}</END>
+		</SPAN>
+		<SPAN MATCH_TYPE="MARKUP" DELEGATE="TYPE">
+			<BEGIN>&lt;</BEGIN>
+			<END>&gt;</END>
+		</SPAN>
+		<SPAN MATCH_TYPE="OPERATOR" DELEGATE="TYPE">
+			<BEGIN>(</BEGIN>
+			<END>)</END>
+		</SPAN>
+		<SEQ_REGEXP TYPE="LABEL" HASH_CHARS="ABCDEFGHIJKLMNOPQRSTUVWXYZ" AT_WORD_START="TRUE">[A-Z]\w*(?=[^\w#$?']|$)</SEQ_REGEXP>
+		<SEQ TYPE="INVALID">]</SEQ>
+		<SEQ TYPE="INVALID">)</SEQ>
+		<SEQ TYPE="INVALID">}</SEQ>
+		<SEQ TYPE="INVALID">]</SEQ>
+		<KEYWORDS>
+			<KEYWORD3>array</KEYWORD3>
+			<KEYWORD3>hash</KEYWORD3>
+			<KEYWORD3>list</KEYWORD3>
+			<KEYWORD3>list?</KEYWORD3>
+			<KEYWORD3>map</KEYWORD3>
+			<KEYWORD3>number</KEYWORD3>
+			<KEYWORD3>string</KEYWORD3>
+			<KEYWORD3>boolean</KEYWORD3>
+			<KEYWORD3>var</KEYWORD3>
+			<MARKUP>is</MARKUP>
+		</KEYWORDS>
+	</RULES>
+</MODE>

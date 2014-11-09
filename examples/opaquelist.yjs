@@ -1,0 +1,6 @@
+
+ol = load mods.opaquelist;
+
+ls = ol.create [1..10];
+for (ol.values ls) println;
+

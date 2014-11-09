@@ -1,0 +1,7 @@
+load mods.btree;
+
+t = none |> insert 1
+ |> insert 2
+ |> insert 8;
+
+println "exists \(exists 8 t) \(t)"
