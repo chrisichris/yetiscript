@@ -1,6 +1,90 @@
 <html>
 <head>
-	<script src="lodash.js"></script>
+	<script>
+function timed(its,size,fn) {
+	var t = Date.now(); 
+	for(var i=0;i<its;i++) fn(size); 
+	return (Date.now()) - t;
+}		
+function cons(head,tail){
+	return {
+		head:head, 
+		tail: function(){return tail; }
+	}
+}
+
+function arCons(head,tail){
+	if(tail == null)
+		return [head];
+	var ret = tail.slice(0);
+	ret.unshift(head);
+	return ret;
+}
+
+function many(num,con){
+	var r = null;
+	for(var i=0;i < num; i++)
+		r = con(i,r);
+	return r;
+}
+function map(fn,ls){
+	if(ls) 
+		return {
+			head:fn(ls.head),
+			tail:function(){
+				return map(fn,ls.tail());
+			}
+		}; 
+	else 
+		return ls;
+}
+
+function fold(fn,v,ls){
+	while(ls){
+		v = fn(v,ls.head);
+		ls = ls.tail();
+	};
+	return v;
+}
+
+function filter(fn, ls){
+	while(ls && !fn(ls.head)) 
+		ls = ls.tail(); 
+	if(ls){ 
+		var t = ls.tail(); 
+		return {
+			head:ls.head, 
+			tail: function() {
+				var t = ls.tail();
+				return (t ? filter(fn,t) : t);
+			}
+	    };
+    } else 
+	 	return ls;
+}
+
+function arr(size){
+	var ar = many(size,arCons); 
+	ar = ar.filter(function(v){return (v % 2) == 0;});
+	ar = ar.map(function(e){return e + 2;}); 
+	return ar.reduce(function(v,c){return v + c;},0);
+}
+function arr2(size){
+	var ar = [];
+	for(var i = 0;i<size;i++)
+		ar.push(i);
+	ar = ar.filter(function(v){return (v % 2) == 0;});
+	ar = ar.map(function(e){return e + 2;}); 
+	return ar.reduce(function(v,c){return v + c;},0);
+}
+function ls(size){
+	var ar = many(size,cons); 
+	ar = filter(function(v){return (v % 2) == 0;},ar);
+	ar = map(function(e){return e + 2;},ar); 
+	return fold(function(v,c){return v + c;},0,ar);
+}
+
+	</script>
 </head>
 <body>
 I am just here to 'import' js scripts in the java-scriptconsole of
