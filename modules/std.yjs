@@ -190,6 +190,18 @@ indexOf f l is ('a -> boolean) -> list<'a> -> number =
 find f l is ('a -> boolean) -> list?<'a> -> list<'a> =
     drop (indexOf f l) l;
 
+/**
+ * Group: 1_collections
+ * Checks whether a collection is empty, and returns true when it is.
+ *
+ * This function works on all kinds of standard collections - lists,
+ * arrays and hashes implement the `map<>` interface.
+ *
+ * Arguments:
+ * collection - collection to check
+ */
+norec empty? a is map<'a,'b> -> boolean = 
+    ld#isEmpty(a) unsafely_as boolean;
 
 /**
  * Group: hash (Hash map functions)
@@ -204,6 +216,49 @@ keys h is obj<'a> -> list<string> =
     else
         (ld#keys(h)) unsafely_as list<string>;
     fi;
+/**
+* Group: list
+* Iterates over sequence, applying the block function to the element
+* value for each sequence element.
+*
+* Arguments:
+*  block    - function to call
+*  sequence - list or array to iterate
+*
+* Examples:
+*
+* Print numbers from 1 to 100, using for on range list.
+* : [1..100] forEach do i:
+* :     println i
+* : done
+*/
+forEach fn ls is ('a -> ()) -> list<'a> -> () =
+    (_ = script '
+        if(Array.prototype.forEach 
+            && ls.forEach === Array.prototype.forEach)
+                ls.forEach(fn);
+        else
+            for(var i = 0, l = ls.length;i<l; i += 1)
+                fn(ls[i]);';
+    ());
+/**
+* Group: list
+* Iterates over sequence, applying the block function to the element
+* value for each sequence element.
+*
+* Arguments:
+*  sequence - list or array to iterate
+*  block    - function to call
+*
+* Examples:
+*
+* Print numbers from 1 to 100, using for on range list.
+* : for [1..100] do i:
+* :     println i
+* : done
+*/
+for ls fn is list<'a> -> ('a -> ()) -> () = 
+    forEach fn ls;
 
 /**
  * Group: hash
@@ -300,18 +355,6 @@ plus a b is number -> number -> number = a + b;
 norec length a is map<'a,'b> -> number = 
     (ld#size(a)) unsafely_as number;
 
-/**
- * Group: 1_collections
- * Checks whether a collection is empty, and returns true when it is.
- *
- * This function works on all kinds of standard collections - lists,
- * arrays and hashes implement the `map<>` interface.
- *
- * Arguments:
- * collection - collection to check
- */
-norec empty? a is map<'a,'b> -> boolean = 
-    ld#isEmpty(a) unsafely_as boolean;
 
 /**
  * Group: str
@@ -919,49 +962,6 @@ norec tail a is list?<'a> -> list<'a> =
 norec same? a b is 'a -> 'a -> boolean = 
     (script 'a === b') unsafely_as boolean;
 
-/**
-* Group: list
-* Iterates over sequence, applying the block function to the element
-* value for each sequence element.
-*
-* Arguments:
-*  block    - function to call
-*  sequence - list or array to iterate
-*
-* Examples:
-*
-* Print numbers from 1 to 100, using for on range list.
-* : [1..100] forEach do i:
-* :     println i
-* : done
-*/
-forEach fn ls is ('a -> ()) -> list<'a> -> () =
-    (_ = script '
-        if(Array.prototype.forEach 
-            && ls.forEach === Array.prototype.forEach)
-                ls.forEach(fn);
-        else
-            for(var i = 0, l = ls.length;i<l; i += 1)
-                fn(ls[i]);';
-    ());
-/**
-* Group: list
-* Iterates over sequence, applying the block function to the element
-* value for each sequence element.
-*
-* Arguments:
-*  sequence - list or array to iterate
-*  block    - function to call
-*
-* Examples:
-*
-* Print numbers from 1 to 100, using for on range list.
-* : for [1..100] do i:
-* :     println i
-* : done
-*/
-for ls fn is list<'a> -> ('a -> ()) -> () = 
-    forEach fn ls;
 
 
 /**

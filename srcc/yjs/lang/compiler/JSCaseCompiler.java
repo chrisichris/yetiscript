@@ -29,6 +29,8 @@
 package yjs.lang.compiler;
 
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import yeti.lang.Core;
 
@@ -36,8 +38,9 @@ final class JSCaseCompiler extends YetiType {
 	final JSBlock global;
 
 	final JSAnalyzer anal;
-	final JSAnalyzer.JSScope scope;
+	JSAnalyzer.JSScope scope;
 	final Node node;
+	final Set<String> definedVars = new HashSet<String>();
 
 	JSCaseCompiler(JSAnalyzer anal, JSAnalyzer.JSScope scope, Node nd) {
 		this.global = new JSBlock("case", nd);
@@ -49,14 +52,16 @@ final class JSCaseCompiler extends YetiType {
 	private JSSym addVar(String name, Node n) {
 		JSSym var;
 		if (name == null)
-			var = new JSSym();
-		else
-			var = new JSSym(name, n);
-		if (name == null || !scope.vars.contains(var.sym)) {
-			scope.bind(var.sym, n);
-			global.bind(var, JSCode.UNDEF, n);
+			return new JSSym();
+		else{
+			if(definedVars.contains(name)) 
+				return scope.ref(name, n);
+			definedVars.add(name);
+			scope = scope.create(name);
+			JSSym sy = scope.decl(n);
+			global.bind(sy, JSCode.UNDEF, n);
+			return sy;
 		}
-		return var;
 	}
 
 	final private static class CPattern implements Comparable {
@@ -124,24 +129,24 @@ final class JSCaseCompiler extends YetiType {
 
 				JSExpr expr = JSBinOp.create(
 						"and",
-						new JSBinOp("===", new JSLitExpr(Core.show(variant),
-								pat.left),
+						new JSBinOp("===", 
+								new JSLitExpr(Core.show(variant), pat.left),
 								new JSFieldRef(val, "tag", pat.left), node)
-								.toExpr(), valPat, node).toExpr();
+								.toExpr(), valPat, node,scope).toExpr();
 				expr = JSBinOp.create(
 						"and",
-						new JSBinOp("instanceof", val, new JSSym("_tag", node),
-								node), expr, node).toExpr();
+						new JSBinOp("instanceof", val, new JSLitExpr("_tag", node),
+								node), expr, node,scope).toExpr();
 				if ("None".equals(variant)) {
 					expr = JSBinOp
 							.create("or",
 									new JSBinOp("===", val, JSCode.NULL, node)
-											.toExpr(), expr, node).toExpr();
+											.toExpr(), expr, node,scope).toExpr();
 					return new CPattern(expr, -1);
 				}
 				if ("Some".equals(variant)) {
 					expr = JSBinOp.create("or", expr,
-							toPattern(pat.right, val).expr, node).toExpr();
+							toPattern(pat.right, val).expr, node,scope).toExpr();
 					return new CPattern(expr, 4);
 				}
 				return new CPattern(expr, 0);
@@ -202,10 +207,8 @@ final class JSCaseCompiler extends YetiType {
 					&& ((Sym) choice.expr[0]).sym == "...")
 				pats[i - 1].body = JSCode.UNDEF;
 			else
-				pats[i - 1].body = anal.analyze(choice.expr[1],
-						new JSAnalyzer.JSScope(scope, true));
+				pats[i - 1].body = anal.analyze(choice.expr[1],scope);
 		}
-		scope.unite();
 		Arrays.sort(pats);
 		for (int i = 0; i < pats.length; i++) {
 			jsif.add(pats[i].expr, pats[i].body);

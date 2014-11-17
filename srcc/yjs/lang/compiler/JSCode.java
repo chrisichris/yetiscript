@@ -37,10 +37,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import yjs.lang.compiler.JSAnalyzer.JSScope;
 
 import yeti.lang.Core;
 import yjs.lang.compiler.YetiParser.Node;
 
+class ScopedCode {
+	final JSCode code;
+	final JSScope scope;
+	public ScopedCode(JSScope sc, JSCode cd) {
+		this.code = cd;
+		this.scope = sc;
+	}
+}
 class CodeBuilder {
 
 	static final char[] mangle = "jQh$oBz  apCmds          cSlegqt"
@@ -158,15 +167,15 @@ abstract class JSCode {
 	public static final JSLitExpr UNDEF = new JSLitExpr("undefined", null);
 	public static final JSExpr EMPTY_LIST = new JSLitExpr("[]", null);
 	public final static JSLitExpr EMPTY_MAP = new JSLitExpr("{}", null);
-	public static final JSSym NO_ARG = new JSSym("", null);
+	public static final JSSym NO_ARG = JSScope.ROOT.ref("", null);
 	public static final JSLitExpr NULL = new JSLitExpr("null", null);
-	public static final JSSym UNDEF_STR = new JSSym("undef_str", null);
-	public static final JSSym NaN = new JSSym("naN", null);
+	public static final JSSym UNDEF_STR = JSScope.ROOT.ref("undef_str", null);
+	public static final JSSym NaN = JSScope.ROOT.ref("naN", null);
 	public static final JSCode CONTINUE = new JSLitExpr("continue", null);
 	public static final JSCode BREAK = new JSLitExpr("break", null);
 
 	static JSCode buildIn(String name, JSExpr arg, Node node) {
-		return JSApply.create(new JSSym(name, node), arg, node);
+		return JSApply.create(new JSLitExpr(name,node), arg, node);
 	}
 
 	final YetiParser.Node node;
@@ -540,28 +549,23 @@ final class JSSym extends JSExpr {
 	final String sym;
 	private final String code;
 
-	public JSSym() {
-		this("_$v" + counter++, false, null);
+	JSSym() {
+		super(null);
+		this.sym = "_$v" + counter++;
+		this.code = sym;
 	}
 
-	public JSSym(String sym, Node node) {
-		this(sym, true, node);
-	}
-
-	public JSSym(String sym, boolean escape, Node node) {
+	JSSym(String sym, Node node) {
 		super(node);
 		this.sym = sym;
 
-		if (escape)
-			if (reserved.contains(sym) || sym.startsWith("_$")) {
-				this.code = "_$" + CodeBuilder.mangle(sym);
-			} else {
-				this.code = CodeBuilder.mangle(sym);
-			}
-		else {
-			this.code = sym;
+		if (reserved.contains(sym) || sym.startsWith("_$")) {
+			this.code = "_$" + CodeBuilder.mangle(sym);
+		} else {
+			this.code = CodeBuilder.mangle(sym);
 		}
 	}
+
 
 	String mangled() {
 		return code;
@@ -861,7 +865,7 @@ class JSBinOp extends JSExpr {
 				|| t == YetiType.UNIT_TYPE;
 	}
 
-	static JSCode create(String op, JSExpr left, JSExpr right, Node node) {
+	static JSCode create(String op, JSExpr left, JSExpr right, Node node,JSScope scope) {
 		String opr = (String) OPERATORS.get(op);
 		if (op == "==" || op == "!=") {
 			if (isSimpleType(right) && isSimpleType(left))
@@ -869,7 +873,7 @@ class JSBinOp extends JSExpr {
 		}
 		if (opr == null) {
 			return JSApply.create(
-					JSApply.create(new JSSym(op, node), left, node).toExpr(),
+					JSApply.create(scope.ref(op,node), left, node).toExpr(),
 					right, node);
 		}
 		return new JSBinOp(opr, left, right, node);
@@ -1037,12 +1041,12 @@ class JSFieldRef extends JSExpr {
 
 class JSObj {
 	static class Field {
-		final String name;
+		final JSSym name;
 		final JSExpr value;
 		final boolean hasFun;
 		final Node node;
 
-		public Field(String name, JSExpr value, boolean hasFun, Node nd) {
+		public Field(JSSym name, JSExpr value, boolean hasFun, Node nd) {
 			this.name = name;
 			this.value = value;
 			this.hasFun = hasFun;
@@ -1054,7 +1058,7 @@ class JSObj {
 	final List fields = new ArrayList();
 	boolean hasFun = false;
 
-	void addField(String name, JSExpr value, boolean hasFun, Node nd) {
+	void addField(JSSym name, JSExpr value, boolean hasFun, Node nd) {
 		Field fd = new Field(name, value, hasFun, nd);
 		if (fd.hasFun)
 			this.hasFun = true;
@@ -1075,13 +1079,13 @@ class JSObj {
 		Iterator it = fields.iterator();
 		while (it.hasNext()) {
 			Field fl = (Field) it.next();
-			JSSym fls = new JSSym(fl.name, fl.node);
+			JSSym fls = fl.name;
 			if (fl.hasFun) {
 				fnObjBody.bind(fls, fl.value, fl.node);
-				fnObjBody.add(new JSAssign(new JSFieldRef(litSym, fl.name,
+				fnObjBody.add(new JSAssign(new JSFieldRef(litSym, fl.name.sym,
 						fl.node), fls, fl.node));
 			} else {
-				fnObjBody.bind(fls, new JSFieldRef(litSym, fl.name, fl.node),
+				fnObjBody.bind(fls, new JSFieldRef(litSym, fl.name.sym, fl.node),
 						fl.node);
 			}
 		}
@@ -1096,7 +1100,7 @@ class JSObj {
 		while (it.hasNext()) {
 			Field fl = (Field) it.next();
 			if (!fl.hasFun)
-				lit.add(fl.name, fl.value);
+				lit.add(fl.name.sym, fl.value);
 		}
 		return lit;
 
@@ -1149,10 +1153,10 @@ class JSObjLiteral extends JSExpr {
 class JSFun extends JSExpr {
 	final JSBlock body;
 	final JSSym arg;
-	final String name;
+	final JSSym name;
 	boolean closed = false;
 
-	public JSFun(String name, JSSym arg, JSCode body, Node nd) {
+	public JSFun(JSSym name, JSSym arg, JSCode body, Node nd) {
 		super(nd);
 		if (body instanceof JSBlock)
 			this.body = (JSBlock) body;
@@ -1185,7 +1189,7 @@ class JSFun extends JSExpr {
 		close();
 		bd.add("function");
 		if (name != null)
-			bd.add(" ").add(new JSSym(name, node));
+			bd.add(" ").add(name);
 		bd.add("(").add(arg).add(")").add(body);
 	}
 

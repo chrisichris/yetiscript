@@ -44,42 +44,66 @@ import yeti.lang.Core;
 final public class JSAnalyzer extends YetiType {
 
 	static final class JSScope {
+		static final JSScope ROOT =  (new JSScope(null,"","",true))
+					.create("undef_str")
+					.create("naN")
+					.create("failWith");
+		
 		final JSScope parent;
-		final Set vars = new HashSet();
-		final boolean checkParent;
-		final List uniteChildren = new ArrayList();
-
-		JSScope(JSScope parent, boolean checkParent) {
+		final String yName;
+		final String jsName;
+		private Set<String> fnScope = null;
+		private JSScope(JSScope parent, String yName, String jsName, boolean fnScope) {
 			this.parent = parent;
-			this.checkParent = parent == null ? false : checkParent;
-			if (this.checkParent)
-				parent.uniteChildren.add(this);
+			this.yName = yName.intern();
+			this.jsName = jsName.intern();
+			this.fnScope = fnScope ? new HashSet<String>() : null;
 		}
-
-		JSScope(JSScope parent) {
-			this(parent, false);
+		JSScope fnScope(){
+			return new JSScope(this,"","",true);
 		}
-
-		void unite() {
-			Iterator it = uniteChildren.iterator();
-			while (it.hasNext()) {
-				vars.addAll(((JSScope) it.next()).vars);
+		
+		JSScope create(String yName) {
+			yName = yName.intern();
+			//find jsName
+			JSScope par = this;
+			while(par.fnScope == null){
+				par = par.parent;
 			}
-			uniteChildren.clear();
+			String jsName = yName;
+			for(int i=1;true;i++){
+				if(par.fnScope.contains(jsName))
+					jsName = jsName + i;
+				else{
+					par.fnScope.add(jsName);
+					break;
+				}
+			}
+			return new JSScope(this, yName, jsName,false);
 		}
-
-		boolean contains(String var) {
-			return vars.contains(var) || (checkParent && parent.contains(var));
+		
+		JSSym ref(String name,Node node){
+			name = name.intern();
+			JSScope par = this;
+			while(par != null && par.yName != name)
+				par = par.parent;
+			if(par == null){
+				par = this;
+				StringBuilder bd = new StringBuilder();
+				while(par != null){
+					bd.append(par.yName).append(" ");
+					par = par.parent;
+				}
+				throw new CompileException(node, "Symbol "+name+" not declared "+bd.toString());
+			}
+			return new JSSym(par.jsName, node);
 		}
-
-		void bind(String var, Node n) {
-			if (contains(var))
-				throw new CompileException(n, "name [" + var
-						+ "] is already bound/used in this scope");
-			this.vars.add(var);
+		
+		JSSym decl(Node node) {
+			
+			return new JSSym(this.jsName,node);
 		}
 	}
-
 	private final Compiler compiler;
 
 	private JSAnalyzer(Compiler compiler) {
@@ -118,11 +142,11 @@ final public class JSAnalyzer extends YetiType {
 		if (node instanceof Sym) {
 
 			String sym = ((Sym) node).sym;
-			JSSym js = new JSSym(sym, node);
+			JSSym js = scope.ref(sym,node);
 			if ("none" == sym)
 				return JSCode.NULL;
 			if ("throw" == sym)
-				return new JSSym("failWith", node);
+				return scope.ref("failWith", node);
 			if (Character.isUpperCase(sym.charAt(0))) {
 				return JSCode.buildIn("_tagCon", new JSLitExpr(Core.show(sym),
 						node), node);
@@ -134,14 +158,13 @@ final public class JSAnalyzer extends YetiType {
 		if (node instanceof Str)
 			return new JSLitExpr(Core.show(((Str) node).str), node);
 		if (node instanceof Seq)
-			return analSeq((Seq) node, scope);
+			return (analSeq((Seq) node, scope)).code;
 		if (node instanceof Bind) {
 			Bind bind = (Bind) node;
 			if (bind.expr.kind != "lambda")
 				throw new CompileException(bind, "Closed binding must be a"
 						+ " function binding.\n    Maybe you meant := or =="
 						+ " instead of =, or have missed ; somewhere.");
-			scope.bind(bind.name, node);
 			return lambda((XNode) bind.expr, scope, bind.var);
 			// return new JSSeq.Bind(new JSSym(bind.name,node),
 			// lambda((XNode) bind.expr,scope),node);
@@ -182,7 +205,7 @@ final public class JSAnalyzer extends YetiType {
 
 				return new JSExpr(x) {
 					void code(CodeBuilder bd) {
-						bd.add("(new ").add(new JSSym(name, x.expr[0]))
+						bd.add("(new ").add(new JSLitExpr(name, x.expr[0]))
 								.add("(").addAll(args, ", ").add("))");
 					}
 
@@ -256,14 +279,14 @@ final public class JSAnalyzer extends YetiType {
 			}
 			if (opop == "-" && op.left == null)
 				return JSBinOp.create("-", null, analyze(op.right, scope)
-						.toExpr(), op);
+						.toExpr(), op,scope);
 			/*
 			 * return new JSApply( new SimpleJSExpr("minus", "-",
 			 * JSExpr.PREC_RL), analyze(op.right,scope).toExpr());
 			 */
 			if (opop == "not")
 				return JSBinOp.create("not", null, analyze(op.right, scope)
-						.toExpr(), op);
+						.toExpr(), op,scope);
 
 			/*
 			 * return new JSApply( new SimpleJSExpr("minus", "!",
@@ -288,7 +311,7 @@ final public class JSAnalyzer extends YetiType {
 				return apply(op, analyze(op.right, scope).toExpr(), op.left,
 						scope);
 			return JSBinOp.create(opop, analyze(op.left, scope).toExpr(),
-					analyze(op.right, scope).toExpr(), op);
+					analyze(op.right, scope).toExpr(), op,scope);
 		}
 		throw new CompileException(node,
 				node.kind == "class" ? "Missing ; after class definition"
@@ -313,9 +336,9 @@ final public class JSAnalyzer extends YetiType {
 		if (ref.right instanceof Sym) {
 			if (isJSObj(ref.right.sym())) {
 				if (ref.arguments == null) {
-					return new JSSym(ref.name, ref);
+					return new JSLitExpr(ref.name, ref);
 				} else {
-					return new JSObjApply(new JSSym(ref.name, ref), mapArgs(0,
+					return new JSObjApply(new JSLitExpr(ref.name, ref), mapArgs(0,
 							ref.arguments, scope), ref);
 				}
 			}
@@ -339,7 +362,8 @@ final public class JSAnalyzer extends YetiType {
 		Node fin = null;
 		if (t.expr[1].kind == "catch") {
 			XNode c = (XNode) t.expr[1];
-			tr.catchSym = new JSSym(c.expr[1].sym(), c);
+			scope = scope.create(c.expr[1].sym());
+			tr.catchSym = scope.decl(c);
 			tr.catz.add(analyze(c.expr[2], scope));
 			if (t.expr.length == 3)
 				fin = t.expr[2];
@@ -391,7 +415,7 @@ final public class JSAnalyzer extends YetiType {
 		// otherwise throw gets escaped to use it like a function
 		if (bfun.left instanceof Sym
 				&& ("throw" == (sn = ((Sym) bfun.left).sym) || "failWith" == sn)) {
-			return JSApply.create(new JSSym("throw", false, bfun.left),
+			return JSApply.create(new JSLitExpr("throw", bfun.left),
 					analyze(bfun.right, scope).toExpr(), bfun);
 		}
 		return JSApply.create(analyze(bfun.left, scope).toExpr(),
@@ -422,7 +446,7 @@ final public class JSAnalyzer extends YetiType {
 			return selectMemberFun(fields, section);
 		}
 
-		JSSym fun = new JSSym(sym, section);
+		JSSym fun = scope.ref(sym, section);
 		JSSym tv = new JSSym();
 		JSExpr arg = analyze(section.expr[1], scope).toExpr();
 		JSCode apl = JSApply.create(JSApply.create(fun, tv, section).toExpr(),
@@ -463,7 +487,7 @@ final public class JSAnalyzer extends YetiType {
 
 		for (;;) {
 			JSExpr cond = analyze(condition.expr[0], scope).toExpr();
-			JSCode body = analyze(condition.expr[1], new JSScope(scope, true));
+			JSCode body = analyze(condition.expr[1], scope);
 			jsif.add(cond, body);
 
 			if (condition.expr[2].kind != "if")
@@ -472,9 +496,8 @@ final public class JSAnalyzer extends YetiType {
 			condition = (XNode) condition.expr[2];
 		}
 		if (condition.expr[2].kind != "fi")
-			jsif.add(null, analyze(condition.expr[2], new JSScope(scope, true)));
+			jsif.add(null, analyze(condition.expr[2], scope));
 
-		scope.unite(); // add the vars in the branches back to root
 		return jsif.block();
 	}
 
@@ -504,25 +527,25 @@ final public class JSAnalyzer extends YetiType {
 		return ret;
 	}
 
-	JSBlock explodeStruct(Node where, ModuleType m, JSScope scope) {
+	ScopedCode explodeStruct(Node where, ModuleType m, JSScope scope) {
 		JSBlock ret = new JSBlock("moduleVars", where);
 		if (m.type.type == STRUCT) {
 			Iterator j = m.type.allowedMembers.entrySet().iterator();
 			while (j.hasNext()) {
 				Map.Entry e = (Map.Entry) j.next();
 				String name = ((String) e.getKey()).intern();
-				scope.bind(name, where);
-				ret.bind(new JSSym(name, where), new JSFieldRef(m.jsModuleVar,
+				scope = scope.create(name);
+				ret.bind(scope.decl(where), new JSFieldRef(m.jsModuleVar,
 						name, where), where);
 			}
 		} else if (m.type.type != UNIT) {
 			throw new CompileException(where,
 					"Expected module with struct or unit type here");
 		}
-		return ret;
+		return new ScopedCode(scope,ret);
 	}
 
-	JSStat bindStruct(JSExpr structCode, XNode st, JSScope scope) {
+	ScopedCode bindStruct(JSExpr structCode, XNode st, JSScope scope) {
 		Node[] fields = st.expr;
 		if (fields.length == 0)
 			throw new CompileException(st, NONSENSE_STRUCT);
@@ -542,21 +565,21 @@ final public class JSAnalyzer extends YetiType {
 						"Binding name expected, not a " + field.expr);
 
 			String name = ((Sym) field.expr).sym();
-			scope.bind(name, field);
-			stat.bind(new JSSym(name, field), new JSFieldRef(structCode,
+			scope = scope.create(name);
+			stat.bind(scope.decl(field), new JSFieldRef(structCode,
 					field.name, field), field);
 		}
-		return stat;
+		return new ScopedCode(scope,stat);
 	}
 
-	JSStat analSeq(Seq seq, JSScope scope) {
+	ScopedCode analSeq(Seq seq, JSScope scope) {
 		Node[] nodes = seq.st;
 		JSBlock stat = new JSBlock(seq);
 
 		for (int i = 0; i < nodes.length; ++i) {
 			if (nodes[i] instanceof Bind) {
 				Bind bind = (Bind) nodes[i];
-				scope.bind(bind.name, nodes[i]);
+				scope = scope.create(bind.name);
 				XNode lambda;
 				JSCode valueCode;
 				if ((lambda = asLambda(bind.expr)) != null) {
@@ -568,18 +591,20 @@ final public class JSAnalyzer extends YetiType {
 					// scope = explodeStruct(bind, (LoadModule) code, scope,
 					// bind.name.concat("."), depth - 1, false);
 				}
-				stat.bind(new JSSym(bind.name, bind), valueCode, bind);
+				stat.bind(scope.decl(bind), valueCode, bind);
 			} else if (nodes[i].kind == "struct-bind") {
 				XNode x = (XNode) nodes[i];
 				JSSym helperVar = new JSSym();
-				scope.bind(helperVar.sym, nodes[i]);
-				stat.bind(helperVar, analyze(x.expr[1], scope), x).add(
-						bindStruct(helperVar, (XNode) x.expr[0], scope));
+				ScopedCode sc = bindStruct(helperVar, (XNode) x.expr[0], scope);
+				scope = sc.scope;
+				stat.bind(helperVar, analyze(x.expr[1], scope), x)
+					.add(sc.code);
 
 			} else if (nodes[i].kind == "load") {
 				ModuleType mt = (ModuleType) ((XNode) nodes[i]).expr[1];
-
-				stat.add(explodeStruct(nodes[i], mt, scope));
+				ScopedCode sc =explodeStruct(nodes[i], mt, scope);
+				scope = sc.scope;
+				stat.add(sc.code);
 			} else if (nodes[i].kind == "import") {
 				throw new CompileException(nodes[i],
 						"import not supported in yjs");
@@ -599,48 +624,53 @@ final public class JSAnalyzer extends YetiType {
 				stat.add(analyze(nodes[i], scope));
 			}
 		}
-		return stat;
+		return new ScopedCode(scope,stat);
 	}
 
 	JSExpr lambda(XNode lambda, JSScope scope, boolean bindToVar) {
 		if (lambda.kind != "lambda")
 			throw new CompileException(lambda, "Must be a function");
 
-		scope = new JSScope(scope);
+		scope = scope.fnScope();
 
 		// struct bind body
 		JSBlock varBody = new JSBlock(lambda);
 
 		// last function body
 		JSBlock body = null;
-		List argNames = new ArrayList(); // JSSym
+		List<JSSym> argNames = new ArrayList<JSSym>(); // JSSym
 		JSFun lastFun = null;
 		JSFun firstFun = null;
 		JSFun tcoFun = null;
 		while (true) {
 			body = new JSBlock(lambda);
+			
+			// name of function
+			JSSym name = null;
+			if (lambda.expr.length == 3) {
+				String na = ((Sym) lambda.expr[2]).sym;
+				scope = scope.create(na);
+				name = scope.decl(lambda.expr[2]);
+			}
 			// argument
 			Node arg = lambda.expr[0];
 			Node bodyNode = lambda.expr[1];
-			JSSym argName = (arg instanceof Sym) ? new JSSym(((Sym) arg).sym(),
-					arg) : null;
+			JSSym argName = null;
+			if(arg instanceof Sym) {
+				scope = scope.create(((Sym) arg).sym());
+				argName = scope.decl(arg);
+			}
 			if (arg.kind == "()" || (argName != null && argName.sym == "_")) {
 				argName = JSCode.NO_ARG;
 			} else if (argName == null && arg.kind == "struct") {
 				argName = new JSSym();
-				varBody.add(bindStruct(argName, (XNode) arg, scope));
+				ScopedCode sc = bindStruct(argName, (XNode) arg, scope);
+				scope = sc.scope;
+				varBody.add(sc.code);
 			} else if (argName == null) {
 				throw new CompileException(arg, "Bad argument: " + arg);
 			}
-			if (argName != JSCode.NO_ARG)
-				scope.bind(argName.sym, arg);
 
-			// name of function
-			String name = null;
-			if (lambda.expr.length == 3) {
-				name = ((Sym) lambda.expr[2]).sym;
-				scope.bind(name, lambda);
-			}
 
 			JSFun cur = new JSFun(name, argName, body, lambda);
 			if (firstFun == null) {
@@ -666,13 +696,13 @@ final public class JSAnalyzer extends YetiType {
 				// Is a tail call
 				if (!bindToVar
 						&& tcoFun != null
-						&& JSFun.isBodyTCO(tcoFun.name, args, lastFun.body,
+						&& JSFun.isBodyTCO(tcoFun.name.sym, args, lastFun.body,
 								true, null)) {
 					JSSym tv = new JSSym();
 					JSBlock nBody = new JSBlock(lambda);
 					nBody.bind(tv, JSCode.UNDEF, lambda);
 					// transform it
-					JSFun.isBodyTCO(tcoFun.name, args, lastFun.body, false, tv);
+					JSFun.isBodyTCO(tcoFun.name.sym, args, lastFun.body, false, tv);
 					JSWhile wl = new JSWhile(JSCode.TRUE, lastFun.body.copy(),
 							lambda);
 					nBody.add(wl);
@@ -704,9 +734,10 @@ final public class JSAnalyzer extends YetiType {
 		Node[] nodes = st.expr;
 		if (nodes.length == 0)
 			throw new CompileException(st, NONSENSE_STRUCT);
-		Map valueMap = new IdentityHashMap(nodes.length);
+		Map<String,JSCode> valueMap = new IdentityHashMap(nodes.length);
 
 		JSObj obj = new JSObj();
+		scope = scope.fnScope();
 
 		for (int i = 0; i < nodes.length; ++i) {
 			Bind field = getField(nodes[i]);
@@ -722,7 +753,8 @@ final public class JSAnalyzer extends YetiType {
 				code = analyze(field.expr, scope).toExpr();
 			}
 			valueMap.put(field.name, code);
-			obj.addField(field.name, code, fun, field);
+			scope = scope.create(field.name);
+			obj.addField(scope.decl(field), code, fun, field);
 		}
 
 		return obj.code();
@@ -788,14 +820,17 @@ final public class JSAnalyzer extends YetiType {
 			Node n) {
 		JSAnalyzer anal = new JSAnalyzer(ctx);
 		// dirty hack for preloading just in root contxt
-		JSScope scope = new JSScope(ctx.rootJSScope, true);
+		JSScope scope = JSScope.ROOT;
 		if (ctx.rootJSScope == null) {
-			ctx.rootJSScope = new JSScope(null);
+			ctx.rootJSScope = scope.fnScope();
 			for (int i = 0; i < preload.length; i++) {
 				String mn = preload[i];
 				ModuleType t = ctx.getType(n, mn);
-				ctx.mainJS.add(anal.explodeStruct(n, t, ctx.rootJSScope));
+				ScopedCode sc =anal.explodeStruct(n, t, ctx.rootJSScope);
+				scope = sc.scope;
+				ctx.mainJS.add(sc.code);
 			}
+			ctx.rootJSScope = scope;
 		}
 
 		JSBlock ret = new JSBlock(n);
