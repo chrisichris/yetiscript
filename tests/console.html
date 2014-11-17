@@ -63,6 +63,15 @@ function filter(fn, ls){
 	 	return ls;
 }
 
+function toArray(ls) {
+	var ret = [];
+	while(ls != null) {
+		ret.push(ls.head);
+		ls = ls.tail();
+	}
+	return ret;
+}
+
 function arr(size){
 	var ar = many(size,arCons); 
 	ar = ar.filter(function(v){return (v % 2) == 0;});
@@ -83,6 +92,14 @@ function ls(size){
 	ar = map(function(e){return e + 2;},ar); 
 	return fold(function(v,c){return v + c;},0,ar);
 }
+
+function ls2(size) {
+	var ar = many(size,cons); 
+	ar = filter(function(v){return (v % 2) == 0;},ar);
+	ar = map(function(e){return e + 2;},ar); 
+	ar = toArray(ar);
+	return ar.reduce(function(v,c){return v + c;},0);
+}	
 
 	</script>
 </head>
