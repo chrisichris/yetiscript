@@ -575,6 +575,58 @@ done,
     true
 done,
 
+'shadowing in seq': do:
+    x = 1;
+    _ = x + 1;
+    fn1 = \x;
+    x = "foo";
+    fn2 = \x;
+    fn3 = (x = false;
+           \x);
+    fn4 = \x;
+    x = true;
+    (fn1 ()) == 1 
+    and (fn2 ()) == "foo"
+    and (fn3 ()) == false
+    and (fn4 ()) == "foo";
+done,
+'shadowing 2': do:
+    x = 3;
+    y = (x = x - 1; x * 2) + x;
+    7 == y
+    and x == 3;
+done,
+'scope assign' : do:
+    x = 1;
+    x = (_ = x + 2; x + 1);
+    x == 2;
+done,
+
+'scope struct' : do:
+   z = 2;
+   st = {
+       z = 1,
+       y = z,
+       foo x = x + z, 
+       bar n = 
+            {
+                bar x = 
+                    foo x + n,
+           }
+    };
+    st.z == 1
+    and st.y == 2
+    and st.foo 3 == 4
+    and (st.bar 3).bar 4 == 8
+done,
+
+'scope self' : do:
+    fn x = 2;
+    fn x = 
+        (r = if x > 10 then 10 else fn (x + 1) fi;
+        r);
+    fn 0 == 10;
+done,
 ];
 var bad = 0;
 

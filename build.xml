@@ -81,7 +81,7 @@
 </target>
 
 
-<target name="taskdef" depends="jar">
+<target name="taskdef" depends="prepare-build">
     <taskdef name="yetic" classname="yjs.lang.compiler.YJSTask"
         classpath="${basedir}/yjs.jar"/>
 </target>
@@ -118,12 +118,12 @@
             run="true"/>
 </target>
 
-<target name="examples" depends="taskdef">
+<target name="examples" depends="test, taskdef">
     <yetic srcDir="${basedir}/examples" 
             destDir="${build}"
             run="true"/>
 </target>
-<target name="test" depends="yjstest, junit"/>
+<target name="test" depends="jar, yjstest, junit"/>
 
 <target name="allTests" depends="clean,test,examples"/>
 

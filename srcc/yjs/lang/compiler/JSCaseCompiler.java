@@ -33,20 +33,27 @@ import java.util.HashSet;
 import java.util.Set;
 
 import yeti.lang.Core;
+import yjs.lang.compiler.JSAnalyzer.JSScope;
 
-final class JSCaseCompiler extends YetiType {
+final class JSCaseCompiler extends YetiType 
+	implements Comparable<JSCaseCompiler>{
+	
 	final JSBlock global;
-
 	final JSAnalyzer anal;
 	JSAnalyzer.JSScope scope;
-	final Node node;
-	final Set<String> definedVars = new HashSet<String>();
-
-	JSCaseCompiler(JSAnalyzer anal, JSAnalyzer.JSScope scope, Node nd) {
-		this.global = new JSBlock("case", nd);
+	final Set<String> definedVars ;
+	
+	int prec;
+	JSCode body;
+	JSExpr condExpr;
+	
+	JSCaseCompiler(JSAnalyzer anal, JSScope scope, 
+			JSBlock global, 
+			Set<String> definedVars) {
+		this.global = global;
 		this.anal = anal;
 		this.scope = scope;
-		this.node = nd;
+		this.definedVars = definedVars;
 	}
 
 	private JSSym addVar(String name, Node n) {
@@ -57,53 +64,47 @@ final class JSCaseCompiler extends YetiType {
 			if(definedVars.contains(name)) 
 				return scope.ref(name, n);
 			definedVars.add(name);
-			scope = scope.create(name);
+			scope = scope.bind(name);
 			JSSym sy = scope.decl(n);
 			global.bind(sy, JSCode.UNDEF, n);
 			return sy;
 		}
 	}
-
-	final private static class CPattern implements Comparable {
-		static final CPattern TRUE = new CPattern(JSCode.TRUE, 5);
-		final JSExpr expr;
-		final int prec;
-		JSCode body = null;
-
-		CPattern(JSExpr expr, int prec) {
-			this.expr = expr;
-			this.prec = prec;
-		}
-
-		public int compareTo(Object arg0) {
-			return prec - ((CPattern) arg0).prec;
-		}
-
+	public int compareTo(JSCaseCompiler arg0) {
+		return prec - arg0.prec;
 	}
 
-	CPattern toPattern(final Node node, final JSExpr val) {
+	void makePattern(final Node node, final JSExpr val) {
+		this.condExpr = toPattern(node,val);
+	}
+	
+	private JSExpr toPattern(final Node node, final JSExpr val) {
 		if (node instanceof Sym) {
 			String name = node.sym();
-			if (name == "_" || name == "...")
-				return CPattern.TRUE;
-
-			return new CPattern(new JSSeqExp(addVar(name, node), val,
-					JSCode.TRUE, node), 0);
+			if (name == "_" || name == "..."){
+				this.prec = 5;
+				return JSCode.TRUE;
+			}
+			this.prec = 0;
+			return new JSSeqExp(addVar(name, node), val,
+					JSCode.TRUE, node);
 		}
 		if (node.kind == "()") {
-			return CPattern.TRUE;
+			this.prec = 5;
+			return JSCode.TRUE;
 		}
 		if (node instanceof NumLit || node instanceof Str
 				|| node instanceof ObjectRefOp) {
 			JSExpr v = anal.analyze(node, scope).toExpr();
-			return new CPattern(new JSBinOp("==", v, val, node).toExpr(), 0);
+			this.prec = 0;
+			return new JSBinOp("==", v, val, node).toExpr();
 		}
 		if (node.kind == "list") {
 			Node[] list = ((XNode) node).expr;
 			final JSExpr[] items = new JSExpr[list.length];
 
 			for (int i = 0; i < items.length; i++) {
-				items[i] = toPattern(list[i], new JSArrRef(val, i, list[i])).expr;
+				items[i] = toPattern(list[i], new JSArrRef(val, i, list[i]));
 			}
 
 			JSExpr ret = new JSExpr(node) {
@@ -118,14 +119,15 @@ final class JSCaseCompiler extends YetiType {
 				};
 
 			};
-			return new CPattern(ret, 0);
+			this.prec = 0;
+			return ret;
 		}
 		if (node instanceof BinOp) {
 			final BinOp pat = (BinOp) node;
 			if (pat.op == "" && pat.left instanceof Sym) {
 				String variant = pat.left.sym();
 				JSExpr valPat = toPattern(pat.right, new JSFieldRef(val,
-						"value", node)).expr;
+						"value", node));
 
 				JSExpr expr = JSBinOp.create(
 						"and",
@@ -142,23 +144,26 @@ final class JSCaseCompiler extends YetiType {
 							.create("or",
 									new JSBinOp("===", val, JSCode.NULL, node)
 											.toExpr(), expr, node,scope).toExpr();
-					return new CPattern(expr, -1);
+					this.prec = -1;
+					return expr;
 				}
 				if ("Some".equals(variant)) {
 					expr = JSBinOp.create("or", expr,
-							toPattern(pat.right, val).expr, node,scope).toExpr();
-					return new CPattern(expr, 4);
+							toPattern(pat.right, val), node,scope).toExpr();
+					this.prec = 4;
+					return expr;
 				}
-				return new CPattern(expr, 0);
+				this.prec = 0;
+				return expr;
 			}
 			if (pat.op == "::") {
 				final JSSym tvl = addVar(null, node);
 				final JSSym tvr = addVar(null, node);
 				final JSSeqExp le = new JSSeqExp(tvl, JSCode.buildIn("head",
-						val, node).toExpr(), toPattern(pat.left, tvl).expr,
+						val, node).toExpr(), toPattern(pat.left, tvl),
 						node);
 				final JSSeqExp re = new JSSeqExp(tvr, JSCode.buildIn("tail",
-						val, node).toExpr(), toPattern(pat.right, tvr).expr,
+						val, node).toExpr(), toPattern(pat.right, tvr),
 						node);
 
 				JSExpr expr = new JSExpr(node) {
@@ -171,7 +176,8 @@ final class JSCaseCompiler extends YetiType {
 								.add(le).add(" && ").add(re).add(")");
 					};
 				};
-				return new CPattern(expr, 0);
+				this.prec = 0;
+				return expr;
 			}
 		}
 		if (node.kind == "struct") {
@@ -183,37 +189,45 @@ final class JSCaseCompiler extends YetiType {
 			for (int i = 0; i < fields.length; i++) {
 				Bind field = YetiAnalyzer.getField(fields[i]);
 				JSExpr stru = new JSFieldRef(tv, field.name, field);
-				patterns[i + 1] = toPattern(field.expr, stru).expr;
+				patterns[i + 1] = toPattern(field.expr, stru);
 			}
 			patterns[fields.length + 1] = JSExpr.TRUE;
 
-			return new CPattern(new JSSeqExp(patterns, node), 0);
+			this.prec = 0;
+			return new JSSeqExp(patterns, node);
 		}
 		throw new CompileException(node, "Bad case pattern: " + node);
 	}
 
 	static JSCode caseType(XNode ex, JSAnalyzer anal, JSAnalyzer.JSScope scope) {
 		Node[] choices = ex.expr;
-		JSCaseCompiler cc = new JSCaseCompiler(anal, scope, ex);
+		JSBlock global =new JSBlock("case", ex); 
+		Set<String> definedVars = new HashSet<String>();
+		
 		JSSym val = new JSSym();
-		cc.global.bind(val, anal.analyze(choices[0], scope).toExpr(), null);
+		global.bind(val, anal.analyze(choices[0], scope).toExpr(), null);
 		JSIfBuilder jsif = new JSIfBuilder(ex);
 
-		CPattern[] pats = new CPattern[choices.length - 1];
+		JSCaseCompiler[] pats = new JSCaseCompiler[choices.length - 1];
 		for (int i = 1; i < choices.length; ++i) {
+			JSCaseCompiler cc = 
+					new JSCaseCompiler(anal, scope, global,definedVars);
+			pats[i - 1] = cc;
 			XNode choice = (XNode) choices[i];
-			pats[i - 1] = cc.toPattern(choice.expr[0], val);
+			cc.makePattern(choice.expr[0], val);
+			scope = cc.scope;
 			if (choice.expr[0] instanceof Sym
 					&& ((Sym) choice.expr[0]).sym == "...")
-				pats[i - 1].body = JSCode.UNDEF;
+				cc.body = JSCode.UNDEF;
 			else
-				pats[i - 1].body = anal.analyze(choice.expr[1],scope);
+				cc.body = anal.analyze(choice.expr[1],scope);
+			
 		}
 		Arrays.sort(pats);
 		for (int i = 0; i < pats.length; i++) {
-			jsif.add(pats[i].expr, pats[i].body);
+			jsif.add(pats[i].condExpr, pats[i].body);
 		}
-		cc.global.add(jsif.block());
-		return cc.global;
+		global.add(jsif.block());
+		return global;
 	}
 }

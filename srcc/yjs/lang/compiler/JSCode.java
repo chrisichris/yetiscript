@@ -52,30 +52,6 @@ class ScopedCode {
 }
 class CodeBuilder {
 
-	static final char[] mangle = "jQh$oBz  apCmds          cSlegqt"
-			.toCharArray();
-
-	static final String mangle(String s) {
-		char[] a = s.toCharArray();
-		char[] to = new char[a.length * 2];
-		int l = 0;
-		for (int i = 0, cnt = a.length; i < cnt; ++i, ++l) {
-			char c = a[i];
-			if (c > ' ' && c < 'A' && (to[l + 1] = mangle[c - 33]) != ' ') {
-			} else if (c == '^') {
-				to[l + 1] = 'v';
-			} else if (c == '|') {
-				to[l + 1] = 'I';
-			} else if (c == '~') {
-				to[l + 1] = '_';
-			} else {
-				to[l] = c;
-				continue;
-			}
-			to[l++] = '$';
-		}
-		return new String(to, 0, l);
-	}
 
 	final StringBuilder bd = new StringBuilder();
 
@@ -97,10 +73,6 @@ class CodeBuilder {
 	CodeBuilder add(String str) {
 		bd.append(str);
 		return this;
-	}
-
-	CodeBuilder addMangled(String str) {
-		return this.add(CodeBuilder.mangle(str));
 	}
 
 	CodeBuilder add(JSCode cd) {
@@ -534,7 +506,7 @@ final class JSMap extends JSExpr {
 }
 
 final class JSSym extends JSExpr {
-	final static Set reserved = new HashSet(Arrays.asList(new String[] {
+	final static Set<String> reserved = new HashSet<>(Arrays.asList(new String[] {
 			"break", "extends", "switch", "case", "finally", "this", "class",
 			"for", "catch", "function", "try", "const", "if", "typeof",
 			"continue", "import", "var", "debugger", "in", "void", "default",
@@ -544,6 +516,39 @@ final class JSSym extends JSExpr {
 			"protected", "private", "null", "abstract", "float", "short",
 			"boolean", "goto", "synchronized", "byte", "int", "transient",
 			"char", "long", "volatile", "double", "native", "final" }));
+
+	private static final char[] mangle = "jQh$oBz  apCmds          cSlegqt"
+			.toCharArray();
+
+	private static final String mangleImpl(String s) {
+		char[] a = s.toCharArray();
+		char[] to = new char[a.length * 2];
+		int l = 0;
+		for (int i = 0, cnt = a.length; i < cnt; ++i, ++l) {
+			char c = a[i];
+			if (c > ' ' && c < 'A' && (to[l + 1] = mangle[c - 33]) != ' ') {
+			} else if (c == '^') {
+				to[l + 1] = 'v';
+			} else if (c == '|') {
+				to[l + 1] = 'I';
+			} else if (c == '~') {
+				to[l + 1] = '_';
+			} else {
+				to[l] = c;
+				continue;
+			}
+			to[l++] = '$';
+		}
+		return new String(to, 0, l);
+	}
+	static String mangle(String sym) {
+		if (reserved.contains(sym) || sym.startsWith("_$")) {
+			return "_$" + mangleImpl(sym);
+		} else {
+			return mangleImpl(sym);
+		}
+		
+	}
 
 	private static long counter = 0;
 	final String sym;
@@ -558,18 +563,10 @@ final class JSSym extends JSExpr {
 	JSSym(String sym, Node node) {
 		super(node);
 		this.sym = sym;
-
-		if (reserved.contains(sym) || sym.startsWith("_$")) {
-			this.code = "_$" + CodeBuilder.mangle(sym);
-		} else {
-			this.code = CodeBuilder.mangle(sym);
-		}
+		this.code = mangle(sym);
 	}
 
 
-	String mangled() {
-		return code;
-	}
 
 	void code(CodeBuilder bd) {
 		bd.add(code);
@@ -990,6 +987,12 @@ class JSArrRef extends JSExpr {
 class JSFieldSelector extends JSExpr {
 	static final Pattern FIELD_SYM = Pattern
 			.compile("[a-zA-Z_$][0-9a-zA-Z_$]*");
+	
+	static boolean fieldSym(String name) {
+		return !JSSym.reserved.contains(name) 
+				&& FIELD_SYM.matcher(name).matches();
+	}
+	
 	final String[] fields;
 
 	public JSFieldSelector(String field, Node node) {
@@ -1004,8 +1007,7 @@ class JSFieldSelector extends JSExpr {
 	void code(CodeBuilder bd) {
 		for (int i = 0; i < fields.length; i++) {
 			String field = fields[i];
-			if (!(JSSym.reserved.contains(field))
-					&& FIELD_SYM.matcher(field).matches()) {
+			if (fieldSym(field)) {
 				bd.add(".").add(field);
 			} else {
 				bd.add("[").add(Core.show(field)).add("]");
@@ -1038,7 +1040,7 @@ class JSFieldRef extends JSExpr {
 		return PREC_FIELD;
 	}
 }
-
+/*
 class JSObj {
 	static class Field {
 		final JSSym name;
@@ -1106,7 +1108,7 @@ class JSObj {
 
 	}
 }
-
+*/
 class JSObjLiteral extends JSExpr {
 	class JSFieldValue {
 		final String field;
@@ -1129,6 +1131,10 @@ class JSObjLiteral extends JSExpr {
 	}
 
 	void code(CodeBuilder bd) {
+		if(fieldValues.isEmpty()){
+			bd.add("{}");
+			return;
+		}
 		bd.add("{").ind().nl();
 		boolean first = true;
 		Iterator it = fieldValues.iterator();
