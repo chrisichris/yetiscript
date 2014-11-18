@@ -10,6 +10,9 @@ Status
 ------
 YetiScript is in early development and still very buggy, however it compiles nearly all of yeti-code.
 
+See the [Updates](https://github.com/chrisichris/yetiscript/wiki/Updates) 
+in the wiki
+
 Get Started
 -----------
 Java JDK7 is required. git-clone yetiscript and build it with ant.
@@ -50,4 +53,9 @@ Documentation
  - [yeti homepage](http://mth.github.io/yeti/) : the homepage of yeti with a lot more info 
  - [YetiScript wiki](https://github.com/chrisichris/yetiscript/wiki): feel free to add
 
+Credits
+-------
 
+YetiScript is a fork of [yeti](http://mth.github.io/yeti/) by Madis Janson. 
+YetiScript adds a JavaScript backend to the yeti compiler - which does the 
+bulk of the work.  
