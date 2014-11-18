@@ -1,0 +1,32 @@
+module foobarqix;
+
+// copied from jfpoipret
+// https://github.com/jfpoilpret/yeti-katas/blob/master/foobarqix.yeti  
+
+
+// split numbers into list of digits
+_digits xs n = if n == 0 then xs else (n % 10) :: (_digits xs (n div 10)) fi;
+digits = reverse . _digits [];
+
+// special digits and and their string replacements, in the correct evaluation order
+specials = [pair 3 "Foo", pair 5 "Bar", pair 7 "Qix"];
+
+// some utils: aggregate a list of strings and apply a function to all specials
+cat = fold (^) "";
+allspecs f = cat (map f specials);
+
+// check dividers
+checkdiv n {fst, snd} = if n % fst == 0 then snd else "" fi;
+checkdivs n = allspecs (checkdiv n);
+
+// check individual digits
+checkdigit x {fst, snd} = if x == fst then snd else "" fi;
+checkdigit' x = allspecs (checkdigit x);
+checkdigits n = cat (map checkdigit' (digits n));
+
+// evaluate one number
+eval n = (x = (checkdivs n) ^ (checkdigits n); if x == "" then "\(n)" else x fi);
+
+// show results for 100 first integers (without 0)
+for (map eval [1..100]) println;
+
