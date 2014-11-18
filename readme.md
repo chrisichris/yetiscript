@@ -50,4 +50,9 @@ Documentation
  - [yeti homepage](http://mth.github.io/yeti/) : the homepage of yeti with a lot more info 
  - [YetiScript wiki](https://github.com/chrisichris/yetiscript/wiki): feel free to add
 
+Credits
+-------
 
+YetiScript is a fork of [yeti](http://mth.github.io/yeti/) by Madis Janson. 
+YetiScript adds a JavaScript backend to the yeti compiler - which does the 
+bulk of the work.  
