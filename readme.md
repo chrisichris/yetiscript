@@ -15,29 +15,50 @@ in the wiki
 
 Get Started
 -----------
-Java JDK7 is required. git-clone yetiscript and build it with ant.
+Java JDK7 is required an ``java`` must be on the path.
+YetiScript itself is distributed as a npm-module. To install it execute the 
+follwing commands
+    
+    //test jave version
+    >java -version 
+    java version "1.7.0....."
+
+    //install yetiscript
+    >npm install yetiscript -g
+    ....
+
+    //use yjs to run the yetiscript compiler
+    >yjs
+    help msg ....
+
+
+Alternatively (and to use the lates version) you can git clone it and build it
+with ant
 
     > git clone git://github.com/chrisichris/yetiscript.git
     > cd yetiscript
     > ant
 
-The resulting `yjs.jar` contains everything needed to compile and evaluate yetiscript.
+The resulting ``yjs.jar`` contains everything needed and can be use like the
+npm ``yjs`` command:
 
-Use it to evaluate an expression:
+Basic Usage:
+------------
+Evaluate an expression:
 
-    java -jar yjs.jar -e "1 + 1"
+    yjs -e "1 + 1"
    
 run an example using the build in rhino:
 
-    java -jar yjs.jar -r examples/fact.yjs 
+    yjs -r examples/fact.yjs 
 
 compile an example to `.build` 
 
-    java -jar yjs.jar -d .build examples/fact.yjs
+    yjs -d .build examples/fact.yjs
 
 print help
 
-    java -jar yjs.jar -h
+    yjs yjs.jar -h
 
 Questions, Feedback
 -------------------
