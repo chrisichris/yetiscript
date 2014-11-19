@@ -1,0 +1,32 @@
+{
+  "name": "yetiscript",
+  "version": "0.9.9",
+  "description": "yeti to javascript compiler",
+  "main": "index.js",
+  "directories": {
+    "doc": "doc",
+    "example": "examples",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrisichris/yetiscript.git"
+  },
+  "keywords": [
+    "yeti",
+    "compiler",
+    "javascript",
+    "language",
+    "staticly-typed",
+    "ms"
+  ],
+  "author": "Christian Essl",
+  "license": "BSD-3-Clause",
+  "bugs": {
+    "url": "https://github.com/chrisichris/yetiscript/issues"
+  },
+  "homepage": "https://github.com/chrisichris/yetiscript"
+}
