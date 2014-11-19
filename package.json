@@ -21,7 +21,6 @@
     "ms"
   ],
  
-  "files":["readme.md","license","./index.js","./yjs","./yjs.jar"],
   "engine": ["node >=0.10"],
   "main": "./index.js",
   "bin": {"yjs": "./yjs"}
