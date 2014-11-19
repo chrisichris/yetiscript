@@ -31,6 +31,8 @@
 package yjs.lang.compiler;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -39,6 +41,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 
 import yeti.lang.Core;
 
@@ -56,30 +59,38 @@ final public class JSAnalyzer extends YetiType {
 		final JSScope parent;
 		final String yName;
 		final String jsName;
-		private Set<String> fnScope = null;
+		private final Set<String> fnScope;
+		final Set<String> freeVars;
+		List<JSSym> tcoArgs = null; //used by lambda to mark parent fn as tco
+		
 		private JSScope(JSScope parent, String yName, String jsName, boolean fnScope) {
 			this.parent = parent;
 			this.yName = yName.intern();
 			this.jsName = jsName.intern();
 			this.fnScope = fnScope ? new HashSet<String>() : null;
+			this.freeVars = fnScope ? new HashSet<String>() : null;
 		}
 		JSScope fnScope(){
 			return new JSScope(this,"","",true);
 		}
 		
+		JSScope findFnScope(){
+			JSScope par = this;
+			while(par.fnScope == null) par = par.parent;
+			return par;
+		}
 		JSScope bind(String yName) {
+			if(yName == null || "".equals(yName))
+				throw new IllegalArgumentException("yName is empty");
 			yName = yName.intern();
 			//find jsName
-			JSScope par = this;
-			while(par.fnScope == null){
-				par = par.parent;
-			}
+			JSScope par = findFnScope();
 			String jsName = yName;
 			for(int i=1;true;i++){
 				if(par.fnScope.contains(jsName))
 					jsName = yName + i;
 				else{
-					par.fnScope.add(jsName);
+					par.fnScope.add(jsName.intern());
 					break;
 				}
 			}
@@ -89,17 +100,18 @@ final public class JSAnalyzer extends YetiType {
 		JSSym ref(String name,Node node){
 			name = name.intern();
 			JSScope par = this;
-			while(par != null && par.yName != name)
+			while(par != null && par.yName != name){
+				if(par.fnScope != null) //go out of scope -> free
+					par.freeVars.add(name);
 				par = par.parent;
+			}
 			if(par == null){
-				//throw new IllegalArgumentException(""+node.line+": Symbol "+name+" not declared "+this.toString());
 				throw new CompileException(node, "Symbol "+name+" not declared");
 			}
 			return new JSSym(par.jsName, node);
 		}
 		
 		JSSym decl(Node node) {
-			
 			return new JSSym(this.jsName,node);
 		}
 		@Override
@@ -640,14 +652,17 @@ final public class JSAnalyzer extends YetiType {
 		if (lambda.kind != "lambda")
 			throw new CompileException(lambda, "Must be a function");
 
+		//parent lambda scope
+		final JSScope pfnScope = scope.findFnScope();
 		scope = scope.fnScope();
+		final JSScope fnScope = scope; //here we have our free vars
 
-		// struct bind body
+		// add deconstruction of struct-arg in here
 		JSBlock varBody = new JSBlock(lambda);
 
 		// last function body
 		JSBlock body = null;
-		List<JSSym> argNames = new ArrayList<JSSym>(); // JSSym
+		final List<JSSym> argNames = new ArrayList<JSSym>(); // JSSym
 		JSFun lastFun = null;
 		JSFun firstFun = null;
 		JSFun tcoFun = null;
@@ -707,6 +722,7 @@ final public class JSAnalyzer extends YetiType {
 						&& tcoFun != null
 						&& JSFun.isBodyTCO(tcoFun.name.sym, args, lastFun.body,
 								true, null)) {
+					fnScope.tcoArgs = argNames; //mark our scope as TCO
 					JSSym tv = new JSSym();
 					JSBlock nBody = new JSBlock(lambda);
 					nBody.bind(tv, JSCode.UNDEF, lambda);
@@ -720,6 +736,25 @@ final public class JSAnalyzer extends YetiType {
 					lastFun.body.stats.addAll(nBody.stats);
 				}
 				lastFun.close();// close it
+				
+				final String pName = name == null? "" :name.sym;
+				firstFun.capture = new Callable<Set<JSSym>>() {
+					@Override
+					public Set<JSSym> call() throws Exception {
+						if(pfnScope.tcoArgs != null){
+							Set<JSSym> ret = new HashSet<JSSym>();
+							
+							for(String yn:fnScope.freeVars) {
+								JSSym s = fnScope.ref(yn, null);
+								if(pfnScope.tcoArgs.contains(s))
+									ret.add(s);
+							}
+							return ret;
+						}else{
+							return Collections.emptySet();
+						}
+					}
+				};
 				return firstFun;
 			}
 			// go on

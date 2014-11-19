@@ -36,6 +36,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
 import yjs.lang.compiler.JSAnalyzer.JSScope;
 
@@ -101,7 +102,7 @@ class CodeBuilder {
 		return this;
 	}
 
-	CodeBuilder addAll(Collection col, String sep) {
+	<T extends JSCode> CodeBuilder addAll(Collection<T> col, String sep) {
 		if (col == null)
 			return this;
 		JSCode[] cds = new JSCode[col.size()];
@@ -566,7 +567,22 @@ final class JSSym extends JSExpr {
 		this.code = mangle(sym);
 	}
 
-
+	public int hashCode() {
+		return code.hashCode();
+	}
+	
+	public boolean equals(Object arg0) {
+		if(arg0 instanceof JSSym) {
+			JSSym s = (JSSym) arg0;
+			return sym.equals(s.sym) && code.equals(s.code);
+		}
+		return false;
+	}
+	@Override
+	public String toString() {
+		return "("+this.sym+"/"+this.code+")";
+	}
+	
 
 	void code(CodeBuilder bd) {
 		bd.add(code);
@@ -1161,6 +1177,7 @@ class JSFun extends JSExpr {
 	final JSSym arg;
 	final JSSym name;
 	boolean closed = false;
+	Callable<Set<JSSym>> capture; //set to capture vars from 
 
 	public JSFun(JSSym name, JSSym arg, JSCode body, Node nd) {
 		super(nd);
@@ -1188,15 +1205,29 @@ class JSFun extends JSExpr {
 		}
 	}
 
-	private void reti() {
-	}
-
 	void code(CodeBuilder bd) {
 		close();
+		//if we have to capture something wrap it in an IIFE
+		Set<JSSym> captVars = null;
+		try{
+			captVars = capture == null ? null : 
+				(captVars = capture.call()).size() == 0 ? null : captVars;
+		}catch(Exception ex){}
+		if(captVars != null)
+			bd.add("(function(")
+			.addAll(captVars,", ")
+			.add("){ return ");
+		
 		bd.add("function");
 		if (name != null)
 			bd.add(" ").add(name);
 		bd.add("(").add(arg).add(")").add(body);
+		
+		if(captVars != null) {
+			bd.add(";} (")
+			.addAll(captVars, ", ")
+			.add("))");
+		}
 	}
 
 	int precedence() {

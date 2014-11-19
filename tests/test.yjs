@@ -627,6 +627,16 @@ done,
         r);
     fn 0 == 10;
 done,
+'tail rec capture': do:
+    fn x ar = 
+        if x > 5 then 
+            ar 
+        else 
+            fn (x + 1) (\x :: ar) 
+        fi; 
+    ls = (fn 0 []) |> map do f: f() done;
+    ls == reverse [0..5];
+done,
 ];
 var bad = 0;
 
