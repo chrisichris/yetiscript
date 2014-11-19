@@ -50,10 +50,10 @@ import javax.script.ScriptException;
 import javax.script.SimpleScriptContext;
 
 public class YJSMain {
-
+	static final String VERSION = "0.1.1";
 	static final String HELP = 
-			"\n"+
-			"usage: yjs [-flags...] yjsfile\n\n" +
+			"YetiScript version \""+VERSION+"\"\n"+
+			"\nusage: yjs [-flags...] yjsfile\n\n" +
 			"       the default behaviour without flags is to print\n" +
 			"       the resulting javascript to std.out\n\n" +
 			"flags:\n\n"

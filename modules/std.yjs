@@ -2983,13 +2983,27 @@ _tagCon =
 
     /**
      * Group: zmisc
-     * Yeti version string.
+     * YetiScript version string.
      *
+     * Follows the semver.org version schema.
+     *
+     * The yeti version the current version is based on is stored in
+     * 'yetiVersion'
+     */
+    yetiScriptVersion = "0.1.1",
+
+
+    /**
+     * Group: zmisc
+     * Yeti version this version of YetiScript is based on.
+     *
+     * For the version of YetiScript use 'yetiScriptVersion'
      * Notes:
      * Don't try simple string comparision on it.
      * At least convert it to number list with something like:
      * : map number (strSplit '\D+' yetiRuntimeVersion) >= [0,9]
      */
-    yjsRuntimeVersion = "0.9.9+"
+    
+    yetiVersion="0.9.9+",
 
 }
