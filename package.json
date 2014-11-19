@@ -2,19 +2,16 @@
   "name": "yetiscript",
   "version": "0.9.9",
   "description": "yeti to javascript compiler",
-  "main": "index.js",
-  "directories": {
-    "doc": "doc",
-    "example": "examples",
-    "test": "tests"
-  },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "author": "Christian Essl",
+  "license": "BSD-3-Clause",
   "repository": {
     "type": "git",
     "url": "https://github.com/chrisichris/yetiscript.git"
   },
+  "bugs": {
+    "url": "https://github.com/chrisichris/yetiscript/issues"
+  },
+  "homepage": "https://github.com/chrisichris/yetiscript",
   "keywords": [
     "yeti",
     "compiler",
@@ -23,10 +20,10 @@
     "staticly-typed",
     "ms"
   ],
-  "author": "Christian Essl",
-  "license": "BSD-3-Clause",
-  "bugs": {
-    "url": "https://github.com/chrisichris/yetiscript/issues"
-  },
-  "homepage": "https://github.com/chrisichris/yetiscript"
+ 
+  "files":["readme.md","license","./index.js","./yjs","./yjs.jar"],
+  "engine": ["node >=0.10"],
+  "main": "./index.js",
+  "bin": {"yjs": "./yjs"}
+  
 }
