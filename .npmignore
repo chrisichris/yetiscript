@@ -7,11 +7,11 @@ asm-3.1r.jar
 asm-3.1-p1r.jar
 build.xml
 doc/
+examples/
 lib/
 modules/
 srcc/
 srclib/
 tests/
 util/
-examples/
 
