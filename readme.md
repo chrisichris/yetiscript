@@ -10,7 +10,7 @@ Status
 ------
 YetiScript is in early development and still very buggy, however it compiles nearly all of yeti-code.
 
-See the [Updates](https://github.com/chrisichris/yetiscript/wiki/Updates) 
+See the [Wiki](https://github.com/chrisichris/yetiscript/wiki)
 in the wiki
 
 Get Started
