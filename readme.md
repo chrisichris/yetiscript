@@ -44,17 +44,25 @@ npm ``yjs`` command:
 
 Basic Usage:
 ------------
-Evaluate an expression:
+Evaluate an expression with node:
 
-    yjs -e "1 + 1"
+    $yjs -e "1 + 1" | node
+
+evaluate an expression with rhino (build into JDK7):
+
+    $yjs -r -e "1 + 1"
    
+run an example using node:
+
+    yjs examples/fact.yjs | node 
+
 run an example using the build in rhino:
 
     yjs -r examples/fact.yjs 
 
-compile an example to `.build` 
+compile an example to `build` directory 
 
-    yjs -d .build examples/fact.yjs
+    yjs -d build examples/fact.yjs
 
 print help
 

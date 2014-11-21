@@ -62,10 +62,10 @@ public class YJSMain {
 			+ "  -parse-tree    print the parse tree\n\n"
 			+ "  -p             print generated javascript\n\n"
 			+ "  -sp path       set source path\n\n"
-			+ "  -d directory   save javascript to directory\n\n"
-			+ "  -nd            do not save the javascript\n\n"
+			+ "  -d [dir]       write javascript to given directory. Directory\n" 
+			+ "                 defaults to '.'\n\n"
 			+ "  -r             run generated javascript\n\n"
-			+ "  -w [directory] watches the given directory or the sourcefile\n" 
+			+ "  -w [dir]       watches the given directory or the sourcefile\n" 
 			+ "                 for changes and reruns\n\n" 
 			+ "  -t             print type";
 
@@ -100,12 +100,14 @@ public class YJSMain {
 				System.exit(0);
 			} else if ("-e".equals(a)) {
 				yjs.outDir = null;
-				yjs.run = true;
 				if (++i < args.length && yjs.source == null) {
 					yjs.expression = args[i];
-					break;
 				} else
 					exitErr("-e must be followed by expression");
+				//if just -e exp than print to std.out for piping
+				if(args.length == 2)
+					yjs.print = true;
+				break;
 			} else if ("-parse-tree".equals(a)) {
 				yjs.parseTree = true;
 			} else if ("-t".equals(a)) {
@@ -118,13 +120,11 @@ public class YJSMain {
 					exitErr("-sp must be followed by a path");
 			} else if ("-p".equals(a)) {
 				yjs.print = true;
-			} else if ("-nd".equals(a)){
-				yjs.outDir = null;
 			} else if ("-d".equals(a)) {
-				if (++i < args.length)
-					yjs.outDir = new File(args[i]);
-				else
-					exitErr("-d must be followed by an out dir");
+				if( (i+2) < args.length && !args[i+1].startsWith("-")){
+					yjs.outDir = new File(args[++i]);
+				}else
+					yjs.outDir = new File(".");
 			} else if ("-w".equals(a)) {
 				if( (i+2) < args.length && !args[i+1].startsWith("-")){
 					yjs.watchDir = new File(args[++i]);
@@ -206,15 +206,18 @@ public class YJSMain {
 		if (print)
 			System.out.println(code);
 		if (printType && (expression == null || !this.run))
-			System.out.println("is " + t.type);
+			System.err.println("is " + t.type);
 		return new Object[] { t, code };
 	}
 
 	public void run() throws Exception {
 
 		int flags = 0;
-		if (expression != null)
+		String expression = this.expression;
+		if (expression != null){
 			flags = flags | Compiler.CF_EVAL;
+			expression = "println ("+expression+")";
+		}
 		if (parseTree)
 			flags = flags | Compiler.CF_PRINT_PARSE_TREE;
 
@@ -228,7 +231,7 @@ public class YJSMain {
 			throw new IllegalStateException("You must provide either a source or an expression");
 			//repl(flags, ctx);
 		} else {
-			Object[] ret = compile(flags, ctx, this.source, this.expression);
+			Object[] ret = compile(flags, ctx, this.source, expression);
 			ModuleType t = (ModuleType) ret[0];
 			String code = (String) ret[1];
 			if (outDir != null) {
@@ -262,10 +265,6 @@ public class YJSMain {
 						+ code;
 
 				Object sv = engine.eval(code);
-				if(this.expression != null) {
-					System.out.print(sv);
-					System.out.println(" is " + t.type);
-				}
 			}
 		}
 	}
