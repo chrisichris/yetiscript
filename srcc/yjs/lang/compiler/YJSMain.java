@@ -32,7 +32,10 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.lang.ProcessBuilder.Redirect;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
@@ -61,6 +64,7 @@ public class YJSMain {
 			+ "  -h             this help\n\n"
 			+ "  -e expr        evaluate expr\n\n"
 			+ "  -repl          repl using rhino\n\n"
+//			+ "  -nrepl          repl using node\n\n"
 			+ "  -parse-tree    print the parse tree\n\n"
 			+ "  -p             print generated javascript\n\n"
 			+ "  -sp path       set source path\n\n"
@@ -103,8 +107,13 @@ public class YJSMain {
 			} else if ("-repl".equals(a)){
 				if(args.length == 1)
 					yjs.print = false;
-				yjs.startRepl();
+				yjs.startRepl(true);
 				return;
+/*			} else if ("-nrepl".equals(a)){
+				if(args.length == 1)
+					yjs.print = false;
+				yjs.startRepl(false);
+				return;*/
 			} else if ("-e".equals(a)) {
 				yjs.outDir = null;
 				if (++i < args.length && yjs.source == null) {
@@ -298,24 +307,49 @@ public class YJSMain {
 		}
 	}
 
-	void startRepl() throws IOException {
+	void startRepl(boolean rhino) throws IOException {
 		Compiler ctx = setupCompiler();
 		int flags = setupFlags();
 		JSAnalyzer.JSScope.CHECK_SCOPE = false;
 		
 		System.out.println("yjs repl");
 		BufferedReader rd = new BufferedReader(new InputStreamReader(System.in));
-		ScriptEngine eng = new ScriptEngineManager()
-				.getEngineByName("JavaScript");
-		SimpleScriptContext ctxt = new SimpleScriptContext();
+		ScriptEngine rhinoEng = null;
+		SimpleScriptContext rhinoCtxt = null;
+		Process nodeProcess = null;
+		OutputStreamWriter nodeOut = null;
+		
+		if(rhino){
+			rhinoEng = new ScriptEngineManager()
+					.getEngineByName("JavaScript");
+			rhinoCtxt = new SimpleScriptContext();
+		}else{
+			ProcessBuilder pb = new ProcessBuilder("node", "-i");
+			pb.redirectError(Redirect.INHERIT);
+			pb.redirectOutput(Redirect.INHERIT);
+			pb.redirectInput(Redirect.PIPE);
+			nodeProcess = pb.start();
+			nodeOut = new OutputStreamWriter(nodeProcess.getOutputStream());
+		}
+		
 		YetiEval evalEnv = new YetiEval();
+		
 		while (true)
 			try {
 				System.out.print(">");
 				String line = rd.readLine();
 				CompileResult cres = replCompile(line,ctx, evalEnv,flags);
-				Object res = eng.eval(cres.jsCode, ctxt);
-				System.out.println(res + " is " + cres.type.type);
+				if(rhino){
+					Object res = rhinoEng.eval(cres.jsCode, rhinoCtxt);
+					System.out.println(res + " is " + cres.type.type);
+				}else{
+					try{
+						System.exit(nodeProcess.exitValue());
+					}catch(IllegalThreadStateException ex){
+					}
+					nodeOut.write(cres.jsCode+"\n\u0004");
+					System.out.println("is " + cres.type.type);
+				}
 			} catch (Exception ex) {
 				System.err.println(ex.getMessage());
 			}
@@ -341,4 +375,7 @@ public class YJSMain {
 		}
 		
 	}
+	
+	
+	
 }
