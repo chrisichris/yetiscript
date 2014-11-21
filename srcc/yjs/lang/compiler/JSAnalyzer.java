@@ -661,6 +661,7 @@ final public class JSAnalyzer extends YetiType {
 		JSBlock varBody = new JSBlock(lambda);
 
 		// last function body
+		JSSym firstName = null;
 		JSBlock body = null;
 		final List<JSSym> argNames = new ArrayList<JSSym>(); // JSSym
 		JSFun lastFun = null;
@@ -676,6 +677,9 @@ final public class JSAnalyzer extends YetiType {
 				scope = scope.bind(na);
 				name = scope.decl(lambda.expr[2]);
 			}
+			if(firstName == null)
+				firstName = name == null ? JSCode.NaN : name;
+			
 			// argument
 			Node arg = lambda.expr[0];
 			Node bodyNode = lambda.expr[1];
@@ -713,6 +717,11 @@ final public class JSAnalyzer extends YetiType {
 			lastFun = cur;
 
 			if ((lambda = asLambda(bodyNode)) == null) {
+				//rebind name if var
+				if(bindToVar && firstName != null && firstName != JSCode.NaN){
+					scope = scope.bind(firstName.sym);
+					varBody.bind(scope.decl(bodyNode), firstName, bodyNode);
+				}
 				lastFun.body.addFlat(varBody); // the destructured args
 				lastFun.body.addFlat(analyze(bodyNode, scope)); // the meat
 				JSSym[] args = (JSSym[]) argNames.toArray(new JSSym[argNames
