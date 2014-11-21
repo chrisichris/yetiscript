@@ -26,8 +26,67 @@
  */
 module std;
 
-script load yjslodash;
-ld = script '_';
+
+_ = script 'function _equals(a,b){
+    if(a === b)
+        return true;
+    if(typeof a !== typeof b)
+        return false;
+
+    if(a instanceof Array
+        && b instanceof Array
+        && b.length === a.length) {
+        for(var i=0, l = a.length; i < l;i++){
+            if(! _equals(a[i],b[i]))
+                return false;
+        }
+        return true;
+    }
+
+    if(typeof a === "object"
+       && a.prototype === b.prototype) {
+        var aMemberCount = 0;
+        if(Object.keys){
+            var ks = Object.keys(a);
+            for(var i=0, l = ks.length; i<l; i++) {
+                var k = ks[i];
+                if(! _equals(a[k],b[k]))
+                    return false;
+                ++aMemberCount;
+            }
+            return aMemberCount == Object.keys(b).length;
+        }else{
+            for(var k in a){
+                if(a.hasOwnProperty(k)){
+                    if(! _equals(a[k],b[k]))
+                        return false;
+                    ++aMemberCount;
+                }
+            }
+            for(var k in b) {
+                if(b.hasOwnproperty(k))
+                    --aMemberCount;
+            }
+            return aMemberCount == 0;
+        }
+    }
+    return false;
+}';
+
+/**
+* Group: 0_logic
+* Returns true when a and b values are equal (and false otherwise).
+*
+* It is internally implemented on most data types using .equals()
+* method on the corresponding JVM value.
+*
+* Arguments:
+* a - first value
+* b - second value
+*/
+norec (==) a b is 'a -> 'a -> boolean= 
+    JSValue#_equals(a,b) unsafely_as boolean;
+
 
 /**
  * Group: zmisc
@@ -86,8 +145,8 @@ array l is list?<'a> -> array<'a> =
  * : concat [[3..6], [5..7], [4]]
  * The result is [3, 4, 5, 6, 5, 6, 7, 4].
  */
-concat l is list?<list?<'a>> -> list<'a> =
-    ld#flatten(l as ~JSValue) unsafely_as list<'a>;
+concat ls is list?<list?<'a>> -> list<'a> =
+    (script 'Array.prototype.concat.apply([],ls);') unsafely_as list<'a>;
 
 /**
  * Group: list
@@ -157,6 +216,21 @@ drop n l is number -> list?<'a> -> list<'a> =
     (n2 = if n <= 0 then 0 else n fi;
     (l unsafely_as ~JSValue)#slice(n2) unsafely_as list<'a>);
 
+indexOf fn ls is ('a -> boolean) -> list?<'a> -> number =
+    (ret = -1;
+    script '
+        var k=0;
+        var o = Object(ls);
+        var len = o.length >>> 0;
+        while (k < len) {
+            var kValue;
+            if(k in o && fn(o[k])){
+                ret = k;
+                break;
+            }
+            k++;
+        }';
+     ret); 
 /**
  * Group: list
  * Returns 0-based index of the first sequence element, which equals
@@ -170,10 +244,8 @@ drop n l is number -> list?<'a> -> list<'a> =
  *  : index 'apples' ['oranges', 'apples', 'rats'] // returns 1
  */
 index v l is 'a -> list?<'a> -> number =
-    (ld#indexOf(l,v)) unsafely_as number;
+    indexOf (== v) l;
 
-indexOf f l is ('a -> boolean) -> list<'a> -> number =
-    ld#findIndex(l,f) unsafely_as number;
 /**
  * Group: list
  * Finds a sequence element, for which the predicate function returns true
@@ -201,7 +273,23 @@ find f l is ('a -> boolean) -> list?<'a> -> list<'a> =
  * collection - collection to check
  */
 norec empty? a is map<'a,'b> -> boolean = 
-    ld#isEmpty(a) unsafely_as boolean;
+    (ret=true;
+    script '
+        if(a instanceof Array && a.length === 0)
+            ret = true;
+        else{
+            if(Object.keys)
+                ret = Object.keys(a).length === 0;
+            else{
+                for(var prop in a){
+                    if(a.hasOwnProperty(prop)){
+                        ret = false;
+                        break;
+                    }
+                }
+            }
+        }';
+    ret);
 
 /**
  * Group: hash (Hash map functions)
@@ -214,7 +302,16 @@ keys h is obj<'a> -> list<string> =
     if empty? h then
         []
     else
-        (ld#keys(h)) unsafely_as list<string>;
+        ret = [];
+        (_ = script '
+            if(Object.keys)
+                ret = Object.keys(h);
+            else
+                for(var prop in h)
+                    if(h.hasOwnProperty(prop))
+                        ret.push(prop);
+            ');
+        ret;
     fi;
 /**
 * Group: list
@@ -301,8 +398,19 @@ jsfn4 f is ('a -> 'b -> 'c -> 'd) -> ~JSValue =
  * :    println "\(k): \(v)\n";
  * : done
  */
-forHash ha f is obj<'b> -> (string-> 'b -> ()) -> () =
-   (_ = script 'ld.forOwn(ha,function(v,k){f(k)(v);});');
+forHash ha fn is obj<'b> -> (string-> 'b -> ()) -> () =
+   (_ = script '
+        if(Object.keys){
+            var keys = Object.keys(ha);
+            keys.forEach(function(k){
+                    fn(k)(ha[k]);
+                });
+        }else{
+            for(var k in ha) {
+                if(ha.isOwnProperty(k))
+                    fn(k)(ha[k]);
+            }
+        }');
 
 /**
  * Group: list
@@ -353,7 +461,20 @@ plus a b is number -> number -> number = a + b;
  * these automatically into lists on function arguments.
  */
 norec length a is map<'a,'b> -> number = 
-    (ld#size(a)) unsafely_as number;
+    (ret = 0;
+    _ = script '
+        if(a instanceof Array)
+            ret = a.length;
+        else {
+            if(Object.keys){
+                ret = Object.keys(a).length;
+            }else{
+                for(var k in a)
+                    if(a.hasOwnProperty(k))
+                        ret = ret + 1;
+            }
+        }';
+    ret);
 
 
 /**
@@ -533,18 +654,6 @@ norec (or) a b is boolean -> boolean -> boolean = a or b;
 (in) k h is 'k -> map<'k,'v> -> boolean = 
     (script 'h.hasOwnProperty(k)') unsafely_as boolean;
 
-/**
-* Group: 0_logic
-* Returns true when a and b values are equal (and false otherwise).
-*
-* It is internally implemented on most data types using .equals()
-* method on the corresponding JVM value.
-*
-* Arguments:
-* a - first value
-* b - second value
-*/
-norec (==) a b is 'a -> 'a -> boolean= ld#isEqual(a,b) unsafely_as boolean;
 
 /**
 * Group: 0_logic
@@ -558,7 +667,7 @@ norec (==) a b is 'a -> 'a -> boolean= ld#isEqual(a,b) unsafely_as boolean;
 * b - second value
 */
 norec (!=) a b is 'a -> 'a -> boolean = 
-    not (ld#isEqual(a, b) unsafely_as boolean);
+    not (a == b);
 
 /**
 * Group: 0_logic
@@ -1044,7 +1153,7 @@ norec same? a b is 'a -> 'a -> boolean =
 *               empty list is returned in this case)
 */
 mapJSList f l is (~JSValue -> 'a) -> ~JSValue -> list<'a> =
-    if (ld#isArray(l)) unsafely_as boolean then
+    if (script 'l instanceof Array') unsafely_as boolean then
         map f (l unsafely_as list<~JSValue>)
     else
         []
@@ -1065,8 +1174,8 @@ mapJSList f l is (~JSValue -> 'a) -> ~JSValue -> list<'a> =
 * : done
 * Prints system properties.
 */
-forJSObj ha fn is ~JSValue -> (string -> ~JSValue) -> () = 
-    (_ = script 'ld.forOwn(ha, function(v,k){fn(k)(v);});';);
+forJSObj ha fn is ~JSValue -> (string -> ~JSValue -> ()) -> () = 
+    forHash (ha unsafely_as hash<string,~JSValue>) fn;
 
 /**
 * Group: list
@@ -1091,10 +1200,17 @@ forJSObj ha fn is ~JSValue -> (string -> ~JSValue) -> () =
 * collection is more straight-forward solution.
 */
 list a is map<'k, 'a> -> list<'a> =
-    if ld#isArray(a) unsafely_as boolean then
+    if (script 'a instanceof Array') unsafely_as boolean then
         (a as ~JSValue) unsafely_as list<'a>
     else
-        ld#values(a) unsafely_as list<'a>
+        ret = [];
+        _ = script '
+            var ks = keys(a);
+            for(var i =0, l = ks.length;
+                i < l; i++){
+                ret.push(a[k]);
+            }';
+        ret
     fi;
 
 /**
@@ -1372,7 +1488,7 @@ concatMap f l is ('a -> list?<'b>) -> list?<'a> -> list<'b> =
 * predicate - function that returns true or false for sequence element
 * sequence  - list or array to be scanned
 */
-any f l is ('a -> boolean) -> list<'a> -> boolean =
+any f l is ('a -> boolean) -> list?<'a> -> boolean =
     indexOf f l >= 0;
 
 /**
@@ -1386,7 +1502,7 @@ any f l is ('a -> boolean) -> list<'a> -> boolean =
 * predicate - function that returns true or false for sequence element
 * sequence  - list or array to be scanned
 */
-all f l =
+all f l is ('a -> boolean) -> list?<'a> -> boolean =
     indexOf do x: not f x done l < 0;
 
 
@@ -1484,8 +1600,17 @@ take n l is number -> list?<'a> -> list<'a> =
 * modified after appling the `takeWhile` function, the result of
 * application is undefined.
 */
-takeWhile pred l is ('a -> boolean) -> list?<'a> -> list<'a> =
-    ld#initial(l,pred) unsafely_as list<'a>;
+takeWhile pred ls is ('a -> boolean) -> list?<'a> -> list<'a> =
+    (ret = [];
+    _ = script '
+        for(var i=0, l = ls.length;i < l; i++){
+            var el = ls[i];
+            if(pred(el))
+                ret.push(el);
+            else
+                break;
+        }';
+    ret);
 
 /**
 * Group: list
@@ -1498,7 +1623,13 @@ takeWhile pred l is ('a -> boolean) -> list?<'a> -> list<'a> =
 * sequence - list or array to be processed
 */
 nub ls is list?<'a> -> list<'a> =
-    ld#uniq(ls) unsafely_as list<'a>;
+    (ret = array [];
+    for ls do v:
+        if(index v ret == -1) then
+            push ret v;
+        fi;
+    done;
+    list ret);
 
 /**
 * Group: list
@@ -1514,8 +1645,20 @@ nub ls is list?<'a> -> list<'a> =
 * Examples:
 * : groupBy (==) [1,1,0,2,0,0,0,3] == [[1,1],[0],[2],[0,0,0],[3]]
 */
-groupBy eq l is ('a -> string) -> list?<'a> -> obj<list<'a>> =
-    ld#groupBy(l,eq) unsafely_as obj<list<'a>>;
+groupBy eq ls is ('a -> string) -> list?<'a> -> obj<list<'a>> =
+    (ret = [:];
+    for ls do v:
+        n = eq v;
+        ar = if not (n in ret) then
+            ls1 = array [];
+            ret[n] := ls1;
+            ls1;
+        else
+            ret[n];
+        fi;
+        push ar v;
+    done;
+    (ret as ~JSValue) unsafely_as obj<list<'a>>);
 
 /**
 * Group: list
@@ -1534,8 +1677,12 @@ groupBy eq l is ('a -> string) -> list?<'a> -> obj<list<'a>> =
 * Examples:
 * : sort [3,1,4,1,5,9,2,6,5,3] == [1,1,2,3,3,4,5,5,6,9]
 */
-sort l is list?<'a> -> list<'a> =
-    ld#sortBy(l) unsafely_as list<'a>;
+sort ls is list?<'a> -> list<'a> =
+    (var ret = ls;
+    _ = script '
+        ret = ret.slice(0);
+        ret.sort();';
+    (ret as ~JSValue) unsafely_as list<'a>);
 
 /**
 * Group: list
@@ -1556,8 +1703,14 @@ sort l is list?<'a> -> list<'a> =
 * Current implementation uses merge sort algorithm.
 * Stable sorting is not guaranteed.
 */
-sortBy less? l is ('a -> 'a -> boolean) -> list?<'a> -> list<'a> =
-    ld#sortBy(l,jsfn2 less?) unsafely_as list<'a>;
+sortBy lessFn ls is ('a -> 'a -> boolean) -> list?<'a> -> list<'a> =
+    (var ret = ls;
+    _ = script '
+        ret = ret.slice(0);
+        ret = ret.sort(function(a,b){
+            return lessFn(a)(b) ? -1 : +1; 
+        });';
+    (ret as ~JSValue) unsafely_as list<'a>);
 
 /// Group: num
 /// Mathematical constant pi (nearest value to pi expressable
@@ -1695,8 +1848,8 @@ round a is number -> number =
 * Arguments:
 * limit - the limit on the returned value (must be greater than zero)
 */
-randomInt lim is number -> number = 
-    ld#random(0,lim) unsafely_as number;
+randomInt lim is number -> number =
+    (script 'Math.floor(Math.random() * lim)') unsafely_as number;
 
 /**
 * Group: str
@@ -2318,7 +2471,27 @@ mapIntoHash getKey getValue sequence =
 * collection - a list, array or hash map
 */
 copy h is map<'a,'b> -> map<'a,'b> =
-    ld#clone(h) unsafely_as map<'a,'b>;
+    (ret = () as ~JSValue unsafely_as map<'a,'b>;
+    _ = script '
+        if(h instanceof Array)
+            ret = h.slice(0);
+        else{
+            ret = {};
+            if(Object.keys) {
+                var ks = Object.keys(h);
+                for(var i=0, l = ks.length; i< l;i++){
+                    var k = ks[i];
+                    ret[k] = h[k];
+                }
+            }else{
+                for(var k in h){
+                    if(h.hasOwnProperty(k)) {
+                        ret[k] = h[k];
+                    }
+                }
+            }
+        }';
+    ret);
 
 /**
 * Group: zmisc
@@ -2430,8 +2603,23 @@ clearHash h is obj<'b> -> () =
 *
 * The library implementation uses internally java.util.Map#putAll().
 */
-insertHash h h' is obj<'b> -> obj<'b> -> () =
-    ld#merge(h,h') unsafely_as ();
+insertHash h hm is obj<'b> -> obj<'b> -> () =
+    (ret = h;
+    _ = script '
+        if(Object.keys) {
+            var ks = Object.keys(hm);
+            for(var i=0, l = ks.length; i< l;i++){
+                var k = ks[i];
+                ret[k] = hm[k];
+            }
+        }else{
+            for(var k in hm){
+                if(hm.hasOwnProperty(k)) {
+                    ret[k] = hm[k];
+                }
+            }
+        }';
+    ());
 
 
 /**
