@@ -41,6 +41,7 @@ import java.nio.file.WatchEvent.Kind;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import yjs.lang.compiler.*;
@@ -57,14 +58,15 @@ public class YJSMain {
 			"       the default behaviour without flags is to print\n" +
 			"       the resulting javascript to std.out\n\n" +
 			"flags:\n\n"
-			+ "  -h             Print this help\n\n"
-			+ "  -e expr        Evaluate expr\n\n"
+			+ "  -h             this help\n\n"
+			+ "  -e expr        evaluate expr\n\n"
+			+ "  -repl          repl using rhino\n\n"
 			+ "  -parse-tree    print the parse tree\n\n"
 			+ "  -p             print generated javascript\n\n"
 			+ "  -sp path       set source path\n\n"
 			+ "  -d [dir]       write javascript to given directory. Directory\n" 
 			+ "                 defaults to '.'\n\n"
-			+ "  -r             run generated javascript\n\n"
+			+ "  -r             run generated javascript using rhino\n\n"
 			+ "  -w [dir]       watches the given directory or the sourcefile\n" 
 			+ "                 for changes and reruns\n\n" 
 			+ "  -t             print type";
@@ -98,6 +100,11 @@ public class YJSMain {
 			if ("-h".equals(a)) {
 				System.out.println(HELP);
 				System.exit(0);
+			} else if ("-repl".equals(a)){
+				if(args.length == 1)
+					yjs.print = false;
+				yjs.startRepl();
+				return;
 			} else if ("-e".equals(a)) {
 				yjs.outDir = null;
 				if (++i < args.length && yjs.source == null) {
@@ -191,7 +198,15 @@ public class YJSMain {
 		}
 	}
 
-	private Object[] compile(int flags, Compiler ctx, String source, String expr)
+	private static final class CompileResult {
+		final ModuleType type;
+		final String jsCode;
+		CompileResult(ModuleType type, String jsCode) {
+			this.type =type;
+			this.jsCode = jsCode;
+		}
+	}
+	private CompileResult compile(int flags, Compiler ctx, String source, String expr)
 			throws Exception {
 		ModuleType t = ctx.compile(source,
 				expr == null ? null : expr.toCharArray(), flags);
@@ -206,12 +221,12 @@ public class YJSMain {
 		if (print)
 			System.out.println(code);
 		if (printType && (expression == null || !this.run))
-			System.err.println("is " + t.type);
-		return new Object[] { t, code };
+			System.err.println("is " + (t.type));
+		
+		return new CompileResult(t,code);
 	}
 
-	public void run() throws Exception {
-
+	private int setupFlags() {
 		int flags = 0;
 		String expression = this.expression;
 		if (expression != null){
@@ -220,20 +235,34 @@ public class YJSMain {
 		}
 		if (parseTree)
 			flags = flags | Compiler.CF_PRINT_PARSE_TREE;
-
+		return flags;
+	}
+	
+	private Compiler setupCompiler() throws IOException {
 		Compiler ctx = new Compiler();
 		ctx.classPath = new ClassFinder(new String[] {}, "");
 		ctx.writer = null;
 		if (sourcePathes != null)
 			ctx.setSourcePath(this.sourcePathes);
+		return ctx;
+	}
+	public void run() throws Exception {
+
+		int flags = setupFlags();
+		String expression = this.expression;
+		if (expression != null){
+			expression = "println ("+expression+")";
+		}
+
+		Compiler ctx = setupCompiler();
 
 		if (this.source == null && this.expression == null) {
 			throw new IllegalStateException("You must provide either a source or an expression");
 			//repl(flags, ctx);
 		} else {
-			Object[] ret = compile(flags, ctx, this.source, expression);
-			ModuleType t = (ModuleType) ret[0];
-			String code = (String) ret[1];
+			CompileResult res = compile(flags, ctx, this.source, expression);
+			ModuleType t = res.type;
+			String code = res.jsCode;
 			if (outDir != null) {
 				File outFile = new File(outDir, t.name + ".js");
 				File parDir = outFile.getParentFile();
@@ -269,24 +298,47 @@ public class YJSMain {
 		}
 	}
 
-	void repl(int flags, Compiler ctx) {
+	void startRepl() throws IOException {
+		Compiler ctx = setupCompiler();
+		int flags = setupFlags();
+		JSAnalyzer.JSScope.CHECK_SCOPE = false;
+		
 		System.out.println("yjs repl");
 		BufferedReader rd = new BufferedReader(new InputStreamReader(System.in));
 		ScriptEngine eng = new ScriptEngineManager()
 				.getEngineByName("JavaScript");
 		SimpleScriptContext ctxt = new SimpleScriptContext();
-		flags = flags | Compiler.CF_EVAL;
+		YetiEval evalEnv = new YetiEval();
 		while (true)
 			try {
 				System.out.print(">");
 				String line = rd.readLine();
-				Object[] ret = compile(flags, ctx, null, line);
-				ModuleType t = (ModuleType) ret[0];
-				String code = (String) ret[1];
-				Object res = eng.eval(code, ctxt);
-				System.out.println(res + " is " + t.type);
+				CompileResult cres = replCompile(line,ctx, evalEnv,flags);
+				Object res = eng.eval(cres.jsCode, ctxt);
+				System.out.println(res + " is " + cres.type.type);
 			} catch (Exception ex) {
 				System.err.println(ex.getMessage());
 			}
+	}
+	
+	private CompileResult replCompile(String code,Compiler ctx, 
+							YetiEval evalEnv, int flags) throws Exception{
+		//taken more or less from eval.yeti evaluteYetiCode
+		flags  = flags
+				| Compiler.CF_EVAL 
+				| Compiler.CF_EVAL_RESOLVE
+				| Compiler.CF_EVAL_STORE;
+		//List bindings = evalEnv.bindings;
+		YetiEval oldContext = YetiEval.set(evalEnv);
+		
+		try{
+			CompileResult res = compile(flags, ctx, null, code);
+			//set back already done JSCode
+			ctx.mainJS = new JSBlock(null);
+			return res;
+		}finally{
+			YetiEval.set(oldContext);
+		}
+		
 	}
 }

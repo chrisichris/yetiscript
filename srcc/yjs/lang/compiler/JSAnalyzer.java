@@ -48,6 +48,8 @@ import yeti.lang.Core;
 final public class JSAnalyzer extends YetiType {
 
 	static final class JSScope {
+		//TODO: find better
+		static boolean CHECK_SCOPE = true; //turned of by ReplCode
 		static final JSScope ROOT =  (new JSScope(null,"","",true))
 					.bind("undef_str")
 					.bind("naN")
@@ -106,7 +108,10 @@ final public class JSAnalyzer extends YetiType {
 				par = par.parent;
 			}
 			if(par == null){
-				throw new CompileException(node, "Symbol "+name+" not declared");
+				if(CHECK_SCOPE)
+					throw new CompileException(node, "Symbol "+name+" not declared");
+				else
+					return new JSSym(name,node);
 			}
 			return new JSSym(par.jsName, node);
 		}
