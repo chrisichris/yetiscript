@@ -45,6 +45,7 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import yjs.lang.compiler.*;
@@ -235,6 +236,10 @@ public class YJSMain {
 		return new CompileResult(t,code);
 	}
 
+	private CompileResult compile(String source,String expression) throws Exception{
+		return compile(setupFlags(),setupCompiler(),source,expression);
+	}
+
 	private int setupFlags() {
 		int flags = 0;
 		String expression = this.expression;
@@ -256,20 +261,17 @@ public class YJSMain {
 		return ctx;
 	}
 	public void run() throws Exception {
-
-		int flags = setupFlags();
 		String expression = this.expression;
 		if (expression != null){
 			expression = "println ("+expression+")";
 		}
 
-		Compiler ctx = setupCompiler();
-
 		if (this.source == null && this.expression == null) {
 			throw new IllegalStateException("You must provide either a source or an expression");
 			//repl(flags, ctx);
 		} else {
-			CompileResult res = compile(flags, ctx, this.source, expression);
+			CompileResult res = compile(this.source,expression);
+			//CompileResult res = compile(flags, ctx, this.source, expression);
 			ModuleType t = res.type;
 			String code = res.jsCode;
 			if (outDir != null) {
@@ -308,9 +310,7 @@ public class YJSMain {
 	}
 
 	void startRepl(boolean rhino) throws IOException {
-		Compiler ctx = setupCompiler();
-		int flags = setupFlags();
-		JSAnalyzer.JSScope.CHECK_SCOPE = false;
+		ReplSession session = new ReplSession();
 		
 		System.out.println("yjs repl");
 		BufferedReader rd = new BufferedReader(new InputStreamReader(System.in));
@@ -338,7 +338,7 @@ public class YJSMain {
 			try {
 				System.out.print(">");
 				String line = rd.readLine();
-				CompileResult cres = replCompile(line,ctx, evalEnv,flags);
+				CompileResult cres = session.compile(line);
 				if(rhino){
 					Object res = rhinoEng.eval(cres.jsCode, rhinoCtxt);
 					System.out.println(res + " is " + cres.type.type);
@@ -375,7 +375,50 @@ public class YJSMain {
 		}
 		
 	}
+
+	private class ReplSession {
+		final String id = UUID.randomUUID().toString();
+		final Compiler ctxt;
+		final YetiEval evalEnv = new YetiEval();
+		final int flags = setupFlags()
+				| Compiler.CF_EVAL 
+				| Compiler.CF_EVAL_RESOLVE
+				| Compiler.CF_EVAL_STORE;
+		public ReplSession() throws IOException {
+			ctxt = setupCompiler();
+			JSAnalyzer.JSScope.CHECK_SCOPE = false;
+		}
+		
+		CompileResult compile(String code) throws Exception{
+			//taken more or less from eval.yeti evaluteYetiCode
+			//List bindings = evalEnv.bindings;
+			YetiEval oldContext = YetiEval.set(evalEnv);
+			
+			try{
+				CompileResult res = YJSMain.this.compile(flags, ctxt, null, code);
+				//set back already done JSCode
+				ctxt.mainJS = new JSBlock(null);
+				return res;
+			}finally{
+				YetiEval.set(oldContext);
+			}
+			
+		}
+	}
 	
+	private class YJSServer extends NanoHTTPD{
+	
+		public YJSServer(int port) {
+			super(port);
+		}
+		@Override
+		public Response serve(IHTTPSession session) {
+			// TODO Auto-generated method stub
+			return super.serve(session);
+		}
+		
+		
+	}
 	
 	
 }
