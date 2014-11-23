@@ -87,4 +87,7 @@ Credits
 
 YetiScript is a fork of [yeti](http://mth.github.io/yeti/) by Madis Janson. 
 YetiScript adds a JavaScript backend to the yeti compiler - which does the 
-bulk of the work.  
+bulk of the work. 
+
+Uses the following apis:
+- [nanohttpd](https://github.com/NanoHttpd/nanohttpd) (modified BSD license)
