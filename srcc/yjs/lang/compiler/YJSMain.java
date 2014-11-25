@@ -43,19 +43,44 @@ import java.nio.file.WatchEvent;
 import java.nio.file.WatchEvent.Kind;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import yjs.lang.compiler.*;
+import yjs.lang.compiler.NanoHTTPD.Response.Status;
+
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import javax.script.SimpleScriptContext;
 
 public class YJSMain {
+	//change version in three places:
+	// 1. here
+	// 2. package.json
+	// 3. in std
 	static final String VERSION = "0.1.1";
+
+	static final String YJS_SERVER_HELP =
+	"YetiScript Compile Service version: "+VERSION +"\n\n" +
+	"api:\n\n" +
+	"POST o. GET: /compile?src=sourcecode\n" +
+	"   compile the given sourcecode and response with js \n\n" +
+	"POST o. GET: /repl?src=scourcecode&session=sessionid&seq=seqNr\n" +
+	"   start a new session when no session id is given or compile using the\n" +
+	"   started session with the given id. \n" +
+	"   Returns the compiled code and sessionid and seqnr as headers\n\n" +
+	"GET: /close?session=sessionid\n" +
+	"   close the given session\n\n";
+	
 	static final String HELP = 
 			"YetiScript version \""+VERSION+"\"\n"+
 			"\nusage: yjs [-flags...] yjsfile\n\n" +
@@ -73,7 +98,9 @@ public class YJSMain {
 			+ "                 defaults to '.'\n\n"
 			+ "  -r             run generated javascript using rhino\n\n"
 			+ "  -w [dir]       watches the given directory or the sourcefile\n" 
-			+ "                 for changes and reruns\n\n" 
+			+ "                 for changes and reruns\n\n"
+			+ "  -server [port] start the httpd res-server on the opt. port\n"
+			+ "                 port defaults to 9090 '\n\n"
 			+ "  -t             print type";
 
 	public File outDir = null;
@@ -105,6 +132,20 @@ public class YJSMain {
 			if ("-h".equals(a)) {
 				System.out.println(HELP);
 				System.exit(0);
+			} else if ("-server".equals(a)){
+				if(args.length == 1)
+					yjs.print = false;
+				int port = 9090;
+				if(++i < args.length)
+					try{
+						port = Integer.parseInt(args[i]);
+					}catch(NumberFormatException ex){
+						exitErr("no valid port argument to -server "+args[i]);
+					}
+				NanoHTTPD server = yjs.createServer(port);
+				server.start();
+				while(true)
+					Thread.sleep(1000*10);
 			} else if ("-repl".equals(a)){
 				if(args.length == 1)
 					yjs.print = false;
@@ -236,16 +277,16 @@ public class YJSMain {
 		return new CompileResult(t,code);
 	}
 
-	private CompileResult compile(String source,String expression) throws Exception{
-		return compile(setupFlags(),setupCompiler(),source,expression);
+	private CompileResult compile(boolean expression, String source) throws Exception{
+		return compile(setupFlags(expression),setupCompiler(),
+				expression ? null : source,
+				expression ? source : null);
 	}
 
-	private int setupFlags() {
+	private int setupFlags(boolean expr) {
 		int flags = 0;
-		String expression = this.expression;
-		if (expression != null){
+		if (expr){
 			flags = flags | Compiler.CF_EVAL;
-			expression = "println ("+expression+")";
 		}
 		if (parseTree)
 			flags = flags | Compiler.CF_PRINT_PARSE_TREE;
@@ -270,7 +311,9 @@ public class YJSMain {
 			throw new IllegalStateException("You must provide either a source or an expression");
 			//repl(flags, ctx);
 		} else {
-			CompileResult res = compile(this.source,expression);
+			CompileResult res = this.expression == null ?
+					compile(false,this.source)
+					: compile(true,this.expression);
 			//CompileResult res = compile(flags, ctx, this.source, expression);
 			ModuleType t = res.type;
 			String code = res.jsCode;
@@ -332,13 +375,12 @@ public class YJSMain {
 			nodeOut = new OutputStreamWriter(nodeProcess.getOutputStream());
 		}
 		
-		YetiEval evalEnv = new YetiEval();
 		
 		while (true)
 			try {
 				System.out.print(">");
 				String line = rd.readLine();
-				CompileResult cres = session.compile(line);
+				CompileResult cres = session.compile(line,-1);
 				if(rhino){
 					Object res = rhinoEng.eval(cres.jsCode, rhinoCtxt);
 					System.out.println(res + " is " + cres.type.type);
@@ -355,41 +397,35 @@ public class YJSMain {
 			}
 	}
 	
-	private CompileResult replCompile(String code,Compiler ctx, 
-							YetiEval evalEnv, int flags) throws Exception{
-		//taken more or less from eval.yeti evaluteYetiCode
-		flags  = flags
-				| Compiler.CF_EVAL 
-				| Compiler.CF_EVAL_RESOLVE
-				| Compiler.CF_EVAL_STORE;
-		//List bindings = evalEnv.bindings;
-		YetiEval oldContext = YetiEval.set(evalEnv);
-		
-		try{
-			CompileResult res = compile(flags, ctx, null, code);
-			//set back already done JSCode
-			ctx.mainJS = new JSBlock(null);
-			return res;
-		}finally{
-			YetiEval.set(oldContext);
-		}
-		
-	}
 
 	private class ReplSession {
 		final String id = UUID.randomUUID().toString();
+		final AtomicLong lastUsedTime = 
+				new AtomicLong(System.currentTimeMillis());
 		final Compiler ctxt;
 		final YetiEval evalEnv = new YetiEval();
-		final int flags = setupFlags()
+		final int flags = setupFlags(false)
 				| Compiler.CF_EVAL 
 				| Compiler.CF_EVAL_RESOLVE
 				| Compiler.CF_EVAL_STORE;
+		private long counter = 0;
+		
 		public ReplSession() throws IOException {
 			ctxt = setupCompiler();
 			JSAnalyzer.JSScope.CHECK_SCOPE = false;
 		}
 		
-		CompileResult compile(String code) throws Exception{
+		synchronized long getCounter() {
+			return counter;
+		}
+		synchronized CompileResult compile(String code,long clientCounter) throws Exception{
+			if(clientCounter != -1 && clientCounter != counter){
+				throw new IllegalArgumentException("Wrong Client-Counter: "+clientCounter);
+			}
+			counter++;
+			
+			lastUsedTime.set(System.currentTimeMillis());
+			
 			//taken more or less from eval.yeti evaluteYetiCode
 			//List bindings = evalEnv.bindings;
 			YetiEval oldContext = YetiEval.set(evalEnv);
@@ -406,19 +442,127 @@ public class YJSMain {
 		}
 	}
 	
-	private class YJSServer extends NanoHTTPD{
+	public NanoHTTPD createServer(int port){
+		YJSServer server = new YJSServer(port);
+		return server;
+	}
 	
+	private class YJSServer extends NanoHTTPD{
+		private final ConcurrentHashMap<String, ReplSession> sessions = 
+			new ConcurrentHashMap<>();
+	
+		private final Timer timer = new Timer(true);
+		private final int port;
 		public YJSServer(int port) {
 			super(port);
+			this.port = port;
+			timer.scheduleAtFixedRate(new TimerTask() {
+				public void run() {
+					long cur = System.currentTimeMillis() - 5 * 60 * 1000;
+					for(ReplSession entr: sessions.values()){
+						if(entr.lastUsedTime.get() < cur){
+							sessions.remove(entr.id);
+						}
+					}
+				}
+			}, 0, 5 * 60* 1000); //every 5 min
+		}
+		
+		private Response cors(IHTTPSession session, Status status, String mimeType, String txt) {
+			Response res = new Response(status, mimeType, txt);
+			res.addHeader("Access-Control-Allow-Origin", "*");
+			res.addHeader("Access-Cotnrol-Allow-Credentials","true");
+			res.addHeader("Access-Control-Allow-Methods","GET, POST, OPTIONS");
+			String reqHead = session.getHeaders().get("Access-Control_Request-Headers");
+			if(null != reqHead && !reqHead.equals("")){
+				res.addHeader("Access-Control-Allow-Headers",reqHead);
+			}
+			return res;
+		}
+		private void log(String str){
+			System.out.println("YJSServer: "+str);
 		}
 		@Override
 		public Response serve(IHTTPSession session) {
-			// TODO Auto-generated method stub
-			return super.serve(session);
+	        final Method method = session.getMethod();
+			final String uri = session.getUri();
+			if (Method.PUT.equals(method) || Method.POST.equals(method)) {
+	            try {
+	                session.parseBody(new HashMap<String,String>());
+	            } catch (IOException ioe) {
+	                return cors(session,Status.INTERNAL_ERROR, MIME_PLAINTEXT, 
+	                		"SERVER INTERNAL ERROR: IOException: " 
+	                					+ ioe.getMessage());
+	            } catch (ResponseException re) {
+	                return cors(session,Status.INTERNAL_ERROR, 
+	                		MIME_PLAINTEXT, re.getMessage());
+	            }
+	        }
+			Map<String,String> params = session.getParms();
+			log("Serving: "+uri);
+			try{
+				if("".equals(uri) || "/".equals(uri)){
+					return cors(session,Status.OK, "text/plain",YJS_SERVER_HELP);
+				}else if("/compile".equals(uri)){
+					String src = params.get("src");
+					
+					if(src == null)
+						throw new IllegalArgumentException("no source");
+					CompileResult cres = compile(true, src);
+					return cors(session,
+						Status.OK,"text/javascript",cres.jsCode);
+				}else if("/repl".equals(uri)){
+					String src = params.get("src");
+					if(src == null)
+						throw new IllegalArgumentException("no source");
+					
+					String sessId = params.get("session");
+					
+					ReplSession sess = null;
+					long ct = -1L;
+					if(sessId == null){
+						sess = new ReplSession();
+						sessions.put(sess.id, sess);
+					}else {
+						sess = sessions.get(sessId);
+						if(sess == null)
+							throw new IllegalArgumentException("no session for id: "+sessId);
+						if(params.get("seq") != null)
+							try{
+								ct = Long.parseLong(params.get("seq"));
+							}catch(NumberFormatException ex){
+								throw new IllegalArgumentException("No seq-counter given");
+							}
+					}
+					CompileResult res = sess.compile(src, ct);
+					Response resp = cors(session,Status.OK,"text/javascript",res.jsCode);
+					resp.addHeader("x-session",sess.id);
+					resp.addHeader("x-seq", ""+sess.getCounter());
+					return resp; 
+				}else if("/close".equals(uri)){
+					sessions.remove(params.get("session"));
+					return cors(session,Status.OK,"text/plain","");
+				}else{
+					return cors(session, Status.NOT_FOUND, "text/plain", uri);
+				}
+			}catch(CompileException ex){
+				return cors(session,Status.BAD_REQUEST, "text/plain", ex.getMessage());
+			}catch(IllegalArgumentException ex){
+				return cors(session,Status.NOT_FOUND, "text/plain", ex.getMessage());
+			}catch(Exception ex){
+				ex.printStackTrace();
+				return cors(session,Status.INTERNAL_ERROR, "text/plain", ex.getMessage());
+			}
 		}
-		
-		
+
+		@Override
+		public void start() throws IOException {
+			System.out.println("\nYJSServer listening at localhost:"+ port+"\n"+YJS_SERVER_HELP);
+			super.start();
+		}
 	}
+	
+	
 	
 	
 }
