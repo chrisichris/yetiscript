@@ -370,7 +370,10 @@ class JSBlock extends JSStat {
 		}
 
 		void code(CodeBuilder bd) {
-			bd.add("var ").add(var).add(" = ").add(expr).se();
+			if(expr == JSCode.UNDEF)
+				bd.add("var ").add(var).se();
+			else
+				bd.add("var ").add(var).add(" = ").add(expr).se();
 		}
 	}
 
