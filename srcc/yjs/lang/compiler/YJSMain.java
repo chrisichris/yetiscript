@@ -67,7 +67,7 @@ public class YJSMain {
 	// 1. here
 	// 2. package.json
 	// 3. in std
-	static final String VERSION = "0.1.1";
+	static final String VERSION = "0.2.1";
 
 	static final String YJS_SERVER_HELP =
 	"YetiScript Compile Service version: "+VERSION +"\n\n" +

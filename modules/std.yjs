@@ -3178,7 +3178,7 @@ _tagCon =
      * The yeti version the current version is based on is stored in
      * 'yetiVersion'
      */
-    yetiScriptVersion = "0.1.1",
+    yetiScriptVersion = "0.2.1",
 
 
     /**
