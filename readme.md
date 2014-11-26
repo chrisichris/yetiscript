@@ -8,9 +8,9 @@ YetiScript tries to be as close to yeti as it can, however there are some [diffe
 
 TOC
 ---
-* [Status][]
-* [Get Started][]
-* [Basic Usage][]
+* [Status](#status)
+* [Get Started](#get-started)
+* [Basic Usage](#basic-usage)
 * [Questions, Feedback][]
 * [Documentation][]
 * [Credits][]
