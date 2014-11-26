@@ -8,7 +8,6 @@ var JAR_PATH = exports.JAR_PATH =
 
 exports.run = function(args,callback) {
 	args.unshift("-jar", JAR_PATH);
-	console.log(JAR_PATH);
 	callback = callback ? callback : function(error,stdout,stderr){
 		console.log(stdout);
 		console.error(stderr);
