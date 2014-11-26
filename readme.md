@@ -22,6 +22,31 @@ YetiScript is in early development and still very buggy, however it compiles nea
 See the [Wiki](https://github.com/chrisichris/yetiscript/wiki)
 in the wiki
 
+#### Update Version 0.2.1
+* 26-11-2014 Chrome Extension using the build in compileserver as seperat project [YetiScriptConsole](https://github.com/chrisichris/yetiscript-console)
+* 26-11-2014 fixed bug in npm module logging jar which node did not understand
+* 25-11-2014 added webserver to use compiler/repl as local rest-api
+use the -server swith on yjs to start a NanoHTTPD server wich compiles yetiscript as rest-service. 
+* 21-11-2014 repl now works with rhino
+* 21-11-2014 removed dependencie on lo-dash
+The import was making trouble, so I went further to remove it all together 
+
+#### Updates Version 0.1.1
+* 20-11-2014 Published to npm 
+YetiScript can be installed as a node.js module. The modulename is ``yetiscript`` the if installed globally it can be invoked with the ``yjs`` command.
+* 20-11-2014 New Versioning Scheme and Version 0.1.1
+Yetiscript uses the node.js versioning scheme. And starts all over new with Version 0.1.1. The version is in the std api ``yetiScriptVersion``. The version of yeti the current YetiScript is based on is in ``yetiVersion`` (0.9.9+) 
+* 18-11-2014 Scoping like in yeti
+Before YetiScript used the same local scope as JavaScript (function-scope). Within the same function body a name could only be bound once. Now shadowing, structure and functions-scoping is like in yeti. Bindings with the same name in ohne function get translated to javascript with appending numbers ie
+    fn x = 
+      (x = x + 2;
+       x);
+translates to
+    var fn = function fn(x) {
+      x1 = x + 2;
+      return x1;
+    } 
+
 ## Get Started
 
 Java JDK7 is required an ``java`` must be on the path.
