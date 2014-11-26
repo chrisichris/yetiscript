@@ -261,6 +261,7 @@ public class YJSMain {
 			throws Exception {
 		ModuleType t = ctx.compile(source,
 				expr == null ? null : expr.toCharArray(), flags);
+		ctx.mainJS.add(new JSComment("--- yjsmain ---",null));
 		if (!t.isModule)
 			ctx.mainJS.addFlat(t.jsCode);
 		else
@@ -499,22 +500,23 @@ public class YJSMain {
 	            }
 	        }
 			Map<String,String> params = session.getParms();
-			log("Serving: "+uri);
 			try{
 				if("".equals(uri) || "/".equals(uri)){
 					return cors(session,Status.OK, "text/plain",YJS_SERVER_HELP);
 				}else if("/compile".equals(uri)){
 					String src = params.get("src");
-					
+					log("/compile: "+src);
 					if(src == null)
 						throw new IllegalArgumentException("no source");
 					CompileResult cres = compile(true, src);
+					log("compiled");
 					return cors(session,
-						Status.OK,"text/javascript",cres.jsCode);
+						Status.OK,"text/plain",cres.jsCode);
 				}else if("/repl".equals(uri)){
 					String src = params.get("src");
 					if(src == null)
 						throw new IllegalArgumentException("no source");
+					log("/repl "+src);
 					
 					String sessId = params.get("session");
 					
@@ -535,7 +537,7 @@ public class YJSMain {
 							}
 					}
 					CompileResult res = sess.compile(src, ct);
-					Response resp = cors(session,Status.OK,"text/javascript",res.jsCode);
+					Response resp = cors(session,Status.OK,"text/plain",res.jsCode);
 					resp.addHeader("x-session",sess.id);
 					resp.addHeader("x-seq", ""+sess.getCounter());
 					return resp; 

@@ -220,6 +220,18 @@ abstract class JSStat extends JSCode {
 
 }
 
+class JSComment extends JSStat{
+	final String code;
+	public JSComment(String code, Node node) {
+		super(node);
+		this.code = code;
+	}
+	@Override
+	void code(CodeBuilder bd) {
+		bd.add("// ").add(code);
+	}
+}
+
 class JSGroup extends JSExpr {
 
 	final JSExpr expr;
