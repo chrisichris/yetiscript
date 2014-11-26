@@ -19,9 +19,6 @@ TOC
 
 YetiScript is in early development and still very buggy, however it compiles nearly all of yeti-code.
 
-See the [Wiki](https://github.com/chrisichris/yetiscript/wiki)
-in the wiki
-
 #### Update Version 0.2.1
 * 26-11-2014 Chrome Extension using the build in compileserver as seperat project [YetiScriptConsole](https://github.com/chrisichris/yetiscript-console)
 * 26-11-2014 fixed bug in npm module logging jar which node did not understand
