@@ -116,6 +116,12 @@
     <yetic src="${basedir}/tests/test.yjs" 
             destDir="${build}"
             run="true"/>
+    </target>
+
+<target name="testNode" depends="test">
+    <exec executable="node">
+        <arg value="${build}/test.js"/>
+    </exec>
 </target>
 
 <target name="examples" depends="test, taskdef">
@@ -125,7 +131,7 @@
 </target>
 <target name="test" depends="jar, yjstest, junit"/>
 
-<target name="allTests" depends="clean,test,examples"/>
+<target name="testAll" depends="clean,test,testNode,examples"/>
 
 
 
