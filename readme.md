@@ -11,9 +11,9 @@ TOC
 * [Status](#status)
 * [Get Started](#get-started)
 * [Basic Usage](#basic-usage)
-* [Questions, Feedback][]
-* [Documentation][]
-* [Credits][]
+* [Questions, Feedback](#questions-feedback)
+* [Documentation](#documentation)
+* [Credits](#credits)
 
 ## Status
 
@@ -77,7 +77,7 @@ print help
 
     yjs yjs.jar -h
 
-## Questions, Feedback
+## Questions Feedback
 
 Please point all your questions and feedback to the [yeti mailinglist](https://groups.google.com/forum/#!forum/yeti-lang).
 
